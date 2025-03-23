@@ -1,0 +1,7 @@
+# Contains a private token that you do not want on a public repository
+.env
+
+# Things you probably put here for easy development
+*.exe
+*.db
+core/db/test.db

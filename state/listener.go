@@ -64,6 +64,10 @@ func (l *Listener) ServeHTTP(out http.ResponseWriter, in *http.Request) {
 	if err := json.NewDecoder(in.Body).Decode(l.state); err != nil {
 		fmt.Printf("decode error: %v", err)
 	}
+	// The stats object sent from pokebot does include the current encounter in
+	// the phase, which leads to an off by one error from what's the actual
+	// reported phase on stream.
+	l.state.Stats.CurrentPhase.Encounters++
 	// fmt.Printf("%+v\n", l.state)
 
 	go func() {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -46,29 +46,27 @@ func NewListener(address string, acl []string) (*Listener, error) {
 	http.Handle("/", listener)
 
 	go server.Serve(l)
-	log.Printf("listening on %s", l.Addr())
+	slog.Info(fmt.Sprintf("listening on %s", l.Addr()))
 	return listener, nil
 }
 
 func (l *Listener) ServeHTTP(out http.ResponseWriter, in *http.Request) {
+	slog.Debug("state post received", "method", in.Method, "addr", in.RemoteAddr)
 	if in.Method != http.MethodPost {
 		return
 	}
-	// Print this so I can ACL later.
-	fmt.Println(in.RemoteAddr)
 	if !l.checkAcl(in.RemoteAddr) {
 		out.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	// fmt.Println(in.ContentLength)
 	if err := json.NewDecoder(in.Body).Decode(l.state); err != nil {
-		fmt.Printf("decode error: %v", err)
+		slog.Info(fmt.Sprintf("decode error: %v", err))
 	}
 	// The stats object sent from pokebot does include the current encounter in
 	// the phase, which leads to an off by one error from what's the actual
 	// reported phase on stream.
 	l.state.Stats.CurrentPhase.Encounters++
-	// fmt.Printf("%+v\n", l.state)
+	slog.Debug(fmt.Sprintf("parsed state: %+v", l.state))
 
 	go func() {
 		for _, o := range l.observers {

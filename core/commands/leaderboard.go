@@ -3,7 +3,7 @@ package commands
 import (
 	"bet/core"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -20,9 +20,10 @@ func (c *LeaderboardCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *LeaderboardCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	slog.Debug("leaderboard interaction started")
 	rows, err := c.Core.Database.Leaderboard()
 	if err != nil {
-		log.Printf("DEBUG: could not get leaderboard: %s", err)
+		slog.Warn(fmt.Sprintf("could not get leaderboard: %s", err))
 		genericError(s, i)
 		return
 	}
@@ -31,7 +32,7 @@ func (c *LeaderboardCommand) Interaction(s *discordgo.Session, i *discordgo.Inte
 		var id string
 		var balance int
 		if err := rows.Scan(&id, &balance); err != nil {
-			log.Printf("DEBUG: could not scan leaderboard row: %s", err)
+			slog.Warn(fmt.Sprintf("DEBUG: could not scan leaderboard row: %s", err))
 			genericError(s, i)
 			return
 		}

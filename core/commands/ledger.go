@@ -3,7 +3,7 @@ package commands
 import (
 	"bet/core"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -36,16 +36,17 @@ func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
 // TODO: This should probably also contain some kind of useful summary, like
 // what bets have already won/lost and how much weight that has on the pot.
 func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	slog.Debug("ledge interaction started")
 	eid := i.ApplicationCommandData().Options[0].StringValue()
 	event, err := c.Core.GetEvent(eid)
 	if err != nil {
-		log.Printf("DEBUG: error getting event: %v", err)
+		slog.Warn(fmt.Sprintf("error getting event: %v", err))
 		genericError(s, i)
 		return
 	}
 	rows, err := c.Core.Database.LoadBets(eid)
 	if err != nil {
-		log.Printf("DEBUG: could not load bets: %v", err)
+		slog.Warn(fmt.Sprintf("could not load bets: %v", err))
 		genericError(s, i)
 		return
 	}
@@ -58,7 +59,7 @@ func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 		var risk float64
 		var blob string
 		if err := rows.Scan(&uid, &eid, &placed, &amount, &risk, &blob); err != nil {
-			log.Printf("DEBUG: could not scan bet row reading user bets: %s", uid, err)
+			slog.Warn(fmt.Sprintf("could not scan bet row reading user bets: %s", uid, err))
 			genericError(s, i)
 			return
 		}

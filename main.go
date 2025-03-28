@@ -1,15 +1,17 @@
 package main
 
 import (
+	"bet/cli"
 	"bet/core"
 	"bet/core/commands"
 	"bet/core/db"
 	"bet/core/events"
 	"bet/state"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -20,29 +22,40 @@ type Command interface {
 }
 
 func main() {
+	// Set up structured logging
+	nowStr := time.Now().Format("060102_150405")
+	logFile, err := os.Create(fmt.Sprintf("bet_%s.log", nowStr))
+	if err != nil {
+		fmt.Println("error creating a log file: %v", err)
+		return
+	}
+	logger := slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: cli.LogLevel}))
+	slog.SetDefault(logger)
+
 	// Load environment configuration
 	environment, err := LoadEnvironemnt()
 	if err != nil {
-		log.Printf("error loading environment yaml: %s", err)
+		slog.Error(fmt.Sprintf("error loading environment yaml: %s", err))
 		return
 	}
 
 	// Start a discord bot session, so handlers can be registered.
 	dg, err := discordgo.New("Bot " + environment.Token)
 	if err != nil {
-		log.Printf("error creating discord bot: %v", err)
+		slog.Error(fmt.Sprintf("error creating discord bot: %v", err))
 		return
 	}
 
 	dg.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("Logged in as %s", r.User.String())
+		slog.Info(fmt.Sprintf("Logged in as %s", r.User.String()))
+		fmt.Printf("Logged in as %s\n", r.User.String())
 	})
 
 	// Open a database connection.
-	log.Println(environment.DbName)
+	slog.Info(environment.DbName)
 	database, err := db.Open(environment.DbName)
 	if err != nil {
-		log.Printf("could not open databse: %s", err)
+		slog.Error(fmt.Sprintf("could not open databse: %s", err))
 		return
 	}
 	defer database.Close()
@@ -50,7 +63,7 @@ func main() {
 	// Create the core.
 	core := core.New(database)
 	if core == nil {
-		log.Println("could not create core, exiting")
+		slog.Error("could not create core, exiting")
 		return
 	}
 
@@ -58,13 +71,13 @@ func main() {
 	// _ = updater.NewShinyUpdater(core, dg)
 	l, err := state.NewListener(fmt.Sprintf("%s:%d", environment.Host, environment.Port), environment.PostAcl)
 	if err != nil {
-		log.Printf("err creating http server: %s", err)
+		slog.Error(fmt.Sprintf("err creating http server: %s", err))
 		return
 	}
 	defer l.Close()
 	shinyEvent := events.NewShinyEvent(core, dg, environment.DiscordChannel)
 	if err := core.RegisterEvent("shiny", shinyEvent); err != nil {
-		log.Printf("err registering event: %s", err)
+		slog.Error(fmt.Sprintf("err registering event: %s", err))
 		return
 	}
 	l.Register(shinyEvent)
@@ -83,27 +96,24 @@ func main() {
 			h.Interaction(s, i)
 		}
 	})
-	// TODO: try to use bulk command overwrite to create all the commands?  That's
-	// my best guess for /bets doesn't show up.
 	commandList := make([]*discordgo.ApplicationCommand, 0, len(cs))
 	for _, c := range cs {
 		commandList = append(commandList, c.Command())
-		// if _, err := dg.ApplicationCommandCreate(environment.AppId, environment.DiscordServer, c.Command()); err != nil {
-		// 	log.Printf("Failed to register command %s: %v", name, err)
-		// }
 	}
 	registeredCommands, err := dg.ApplicationCommandBulkOverwrite(environment.AppId, environment.DiscordServer, commandList)
 	if err != nil {
-		log.Printf("Failed to bulk register commands: %v", err)
+		slog.Error(fmt.Sprintf("Failed to bulk register commands: %v", err))
 	}
 
 	// Open the session to start the bot running.
 	err = dg.Open()
 	if err != nil {
-		log.Printf("Could not open session: %s", err)
+		slog.Error(fmt.Sprintf("Could not open session: %s", err))
 		return
 	}
 	defer dg.Close()
+
+	go cli.Loop()
 
 	sigch := make(chan os.Signal, 1)
 	signal.Notify(sigch, os.Interrupt)
@@ -111,7 +121,7 @@ func main() {
 
 	for _, c := range registeredCommands {
 		if err := dg.ApplicationCommandDelete(environment.AppId, environment.DiscordServer, c.ID); err != nil {
-			log.Printf("error removing command: %s", err)
+			slog.Error(fmt.Sprintf("error removing command: %s", err))
 		}
 	}
 }

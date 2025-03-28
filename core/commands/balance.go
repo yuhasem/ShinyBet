@@ -4,7 +4,7 @@ package commands
 import (
 	"bet/core"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -30,6 +30,7 @@ func (c *BalanceCommand) Command() *discordgo.ApplicationCommand {
 
 func (c *BalanceCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	uid := i.Interaction.Member.User.ID
+	slog.Debug("balance interaction started", "user", uid)
 	message := "You have"
 	options := i.ApplicationCommandData().Options
 	if len(options) > 0 {
@@ -38,13 +39,13 @@ func (c *BalanceCommand) Interaction(s *discordgo.Session, i *discordgo.Interact
 	}
 	user, err := c.Core.GetUser(uid)
 	if err != nil {
-		log.Printf("DEBUG: %s requested balance, could not fetch user: %s", uid, err)
+		slog.Warn(fmt.Sprintf("%s requested balance, could not fetch user: %s", uid, err))
 		genericError(s, i)
 		return
 	}
 	balance, inBets, err := user.Balance()
 	if err != nil {
-		log.Printf("DEBUG: %s requested balance, could not load from user object: %s\n", uid, err)
+		slog.Warn(fmt.Sprintf("%s requested balance, could not load from user object: %s\n", uid, err))
 		genericError(s, i)
 		return
 	}

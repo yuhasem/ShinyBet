@@ -4,7 +4,7 @@ import (
 	"bet/core"
 	"bet/state"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"slices"
 	"strconv"
@@ -50,7 +50,7 @@ func NewShinyEvent(c *core.Core, s *discordgo.Session, channel string) *ShinyEve
 func loadEvent(event *ShinyEvent) {
 	rows, err := event.core.Database.LoadEvent("shiny")
 	if err != nil {
-		log.Printf("error querying data for load: %s", err)
+		slog.Error(fmt.Sprintf("error querying data for load: %s", err))
 		return
 	}
 	gotRow := false
@@ -62,17 +62,17 @@ func loadEvent(event *ShinyEvent) {
 		var details []byte
 		err := rows.Scan(&eid, &lastOpen, &lastClose, &details)
 		if err != nil {
-			log.Printf("error reading data for event row %s", err)
+			slog.Error(fmt.Sprintf("error reading data for event row %s", err))
 			return
 		}
 		openTs, err := time.Parse(time.DateTime, lastOpen)
 		if err != nil {
-			log.Printf("unable to parse last open time %s", err)
+			slog.Error(fmt.Sprintf("unable to parse last open time %s", err))
 			return
 		}
 		closeTs, err := time.Parse(time.DateTime, lastClose)
 		if err != nil {
-			log.Printf("unable to parse last close time %s", err)
+			slog.Error(fmt.Sprintf("unable to parse last close time %s", err))
 			return
 		}
 		// TODO: Update should write current phase length, and we should read it
@@ -81,21 +81,22 @@ func loadEvent(event *ShinyEvent) {
 		event.open = !closeTs.Before(openTs)
 	}
 	if !gotRow {
+		slog.Debug("no existing shiny event row")
 		tx, err := event.core.Database.OpenTransaction()
 		if err != nil {
-			log.Printf("error opening transaction for new event: %v", err)
+			slog.Error(fmt.Sprintf("error opening transaction for new event: %v", err))
 			return
 		}
 		if err := tx.WriteNewEvent(shinyEventName, time.Now(), ""); err != nil {
-			log.Printf("error writing new event row: %v", err)
+			slog.Error(fmt.Sprintf("error writing new event row: %v", err))
 			return
 		}
 		if err := tx.Commit(); err != nil {
-			log.Printf("error committing transaction for new event: %v", err)
+			slog.Error(fmt.Sprintf("error committing transaction for new event: %v", err))
 			return
 		}
 		if err := event.Open(time.Now()); err != nil {
-			log.Printf("could not open new event: %v", err)
+			slog.Error(fmt.Sprintf("could not open new event: %v", err))
 		}
 		return
 	}
@@ -113,20 +114,20 @@ func (e *ShinyEvent) Notify(s *state.State) {
 		// 2. Print as much debug info as we can so that a human can go in and
 		//    verify/debug what has happened.
 		// 3. Allow for manual close at a later time.
-		log.Println("TODO: PANIC")
+		slog.Warn("TODO: PANIC")
 	}
 	e.Update(s.Stats.CurrentPhase.Encounters)
 	if s.Encounter.IsShiny {
 		e.lastEncounterWasShiny = true
-		log.Printf("received state %+v", s)
+		slog.Debug(fmt.Sprintf("received state %+v", s))
 		if err := e.Close(time.Now()); err != nil {
-			log.Printf("error closing shiny event: %v", err)
+			slog.Error(fmt.Sprintf("error closing shiny event: %v", err))
 		}
 		// TODO: or should we open on the next encounter? i.e. because the catch
 		// is happening.  I'd rather open up bets as early as possible to allow
 		// for bets on the phase of 1.
 		if err := e.Open(time.Now()); err != nil {
-			log.Printf("error opening shiny event: %v", err)
+			slog.Error(fmt.Sprintf("error opening shiny event: %v", err))
 		}
 	} else {
 		e.lastEncounterWasShiny = false
@@ -276,7 +277,7 @@ func (e *ShinyEvent) Close(closed time.Time) error {
 	refundAll := false
 	if winnerTotal == 0.0 {
 		// Nobody wins!  So everyone gets refunded.
-		log.Println("DEBUG: nobody won the shiny bet")
+		slog.Info("Nobody won the shiny bet")
 		message += "\nNo winning bets!  No changes to user balances."
 		refundAll = true
 	}
@@ -301,7 +302,7 @@ func (e *ShinyEvent) Close(closed time.Time) error {
 			userDelta[b.uid] = -b.amount
 		}
 		if err := user.Resolve(transaction, b.amount, loss); err != nil {
-			log.Printf("DEBUG: could not resolve a users bet in Close(): %v", err)
+			slog.Warn(fmt.Sprintf("Could not resolve a users bet in Close(): %v", err))
 			continue
 		}
 	}
@@ -368,7 +369,7 @@ func (e *ShinyEvent) Close(closed time.Time) error {
 			},
 		}); err != nil {
 			// don't make this error block anything
-			log.Printf("errord sending message on shiny event close: %v", err)
+			slog.Warn(fmt.Sprintf("error sending message on shiny event close: %v", err))
 		}
 	}
 	return nil
@@ -388,12 +389,12 @@ func (e *ShinyEvent) bets() ([]*internalBet, error) {
 		var risk float64
 		var bet string
 		if err := rows.Scan(&uid, &eid, &placed, &amount, &risk, &bet); err != nil {
-			log.Printf("unable to scan bet row: %s", err)
+			slog.Warn(fmt.Sprintf("unable to scan bet row: %s", err))
 			continue
 		}
 		placedTs, err := time.Parse(time.DateTime, placed)
 		if err != nil {
-			log.Printf("unable to parse bet placed time: %s", err)
+			slog.Warn(fmt.Sprintf("unable to parse bet placed time: %s", err))
 			continue
 		}
 		bs = append(bs, &internalBet{

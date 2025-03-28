@@ -3,7 +3,7 @@ package commands
 import (
 	"bet/core"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -21,9 +21,10 @@ func (c *ListBetsCommand) Command() *discordgo.ApplicationCommand {
 
 func (c *ListBetsCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	uid := i.Interaction.Member.User.ID
+	slog.Debug("bets interaction started", "user", uid)
 	rows, err := c.Core.Database.LoadUserBets(uid)
 	if err != nil {
-		log.Printf("DEBUG: %s requested bets, but error loading from db: %s", uid, err)
+		slog.Warn(fmt.Sprintf("%s requested bets, but error loading from db: %s", uid, err))
 		genericError(s, i)
 		return
 	}
@@ -34,14 +35,14 @@ func (c *ListBetsCommand) Interaction(s *discordgo.Session, i *discordgo.Interac
 		var risk float64
 		var blob string
 		if err := rows.Scan(&eid, &amount, &risk, &blob); err != nil {
-			log.Printf("DEBUG: could not scan bet row reading user bets: %s", uid, err)
+			slog.Warn(fmt.Sprintf("could not scan bet row reading user bets: %s", uid, err))
 			genericError(s, i)
 			return
 		}
 		blobInterpret := ""
 		event, err := c.Core.GetEvent(eid)
 		if err != nil {
-			log.Printf("DEBUG: event %s couldn't be loaded", eid, err)
+			slog.Warn(fmt.Sprintf("event %s couldn't be loaded", eid, err))
 			// Loading the event is just for interpreting the blob.  This isn't
 			// a necessary interaction to serve a request.
 		} else {

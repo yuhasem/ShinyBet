@@ -3,7 +3,7 @@ package core
 import (
 	"bet/core/db"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 )
 
@@ -26,14 +26,14 @@ type Core struct {
 func New(d db.Database) *Core {
 	rows, err := d.LoadUsers()
 	if err != nil {
-		log.Printf("error loading users: %v", err)
+		slog.Error(fmt.Sprintf("error loading users: %v", err))
 		return nil
 	}
 	users := make(map[string]*user)
 	for rows.Next() {
 		u, err := loadUser(rows)
 		if err != nil {
-			log.Printf("error loading user: %v", err)
+			slog.Warn(fmt.Sprintf("error loading user: %v", err))
 			continue
 		}
 		users[u.id] = u
@@ -49,34 +49,6 @@ func New(d db.Database) *Core {
 // User Operations //
 // //////////////////
 func (c *Core) GetUser(id string) (*user, error) {
-	// rows, err := c.Database.LoadUser(id)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// loaded := 0
-	// for rows.Next() {
-	// 	loaded++
-	// 	u, err := loadUser(rows)
-	// 	if u != nil {
-	// 		return u, nil
-	// 	}
-	// 	log.Printf("error loading user: %v", err)
-	// }
-	// // No rows, so assume this is a new user interacting for the first time.
-	// if loaded == 0 {
-	// 	t, err := c.Database.OpenTransaction()
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	u, err := newUser(id, t)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if err := t.Commit(); err != nil {
-	// 		return nil, err
-	// 	}
-	// 	return u, nil
-	// }
 	u, ok := c.users[id]
 	if ok {
 		return u, nil
@@ -100,6 +72,7 @@ func (c *Core) GetUser(id string) (*user, error) {
 // RefreshBalance makes it so that all users have at least 100 balance
 // remaining.
 func (c *Core) RefreshBalance() error {
+	slog.Debug("RefreshBalance called")
 	tx, err := c.Database.OpenTransaction()
 	if err != nil {
 		return err
@@ -136,6 +109,7 @@ func (e *EventAlreadyExistsErr) Error() string {
 // 2 events by the same id.
 func (c *Core) RegisterEvent(id string, event Event) error {
 	if _, ok := c.events[id]; ok {
+		slog.Warn(fmt.Sprintf("duplicate event registration: %s", id))
 		return &EventAlreadyExistsErr{eventId: id}
 	}
 	c.events[id] = event
@@ -146,5 +120,6 @@ func (c *Core) GetEvent(id string) (Event, error) {
 	if e, ok := c.events[id]; ok {
 		return e, nil
 	}
+	slog.Warn(fmt.Sprintf("request for non existent event: %s", id))
 	return nil, fmt.Errorf("event of id %s is not registered", id)
 }

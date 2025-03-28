@@ -4,7 +4,7 @@ import (
 	"bet/core"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -35,6 +35,7 @@ func (c *DonateCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *DonateCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	slog.Debug("donate interaction started")
 	options := i.ApplicationCommandData().Options
 	if options[0].IntValue() < 0 {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -61,19 +62,19 @@ func (c *DonateCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 	takingUserID := options[1].UserValue(s).ID
 	givingUser, err := c.Core.GetUser(givingUserID)
 	if err != nil {
-		log.Printf("error getting giving user: %v", err)
+		slog.Warn(fmt.Sprintf("error getting giving user: %v", err))
 		genericError(s, i)
 		return
 	}
 	takingUser, err := c.Core.GetUser(takingUserID)
 	if err != nil {
-		log.Printf("error getting taking user: %v", err)
+		slog.Warn(fmt.Sprintf("error getting taking user: %v", err))
 		genericError(s, i)
 		return
 	}
 	tx, err := c.Core.Database.OpenTransaction()
 	if err != nil {
-		log.Printf("error opening transaction: %v", err)
+		slog.Warn(fmt.Sprintf("error opening transaction: %v", err))
 		genericError(s, i)
 		return
 	}
@@ -88,25 +89,25 @@ func (c *DonateCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 		})
 		return
 	} else if err != nil {
-		log.Printf("error reserving donate amount: %v", err)
+		slog.Warn(fmt.Sprintf("error reserving donate amount: %v", err))
 		genericError(s, i)
 		return
 	}
 	err = givingUser.Resolve(tx, amount, true)
 	if err != nil {
-		log.Printf("error resolving donate amount: %v", err)
+		slog.Warn(fmt.Sprintf("error resolving donate amount: %v", err))
 		genericError(s, i)
 		return
 	}
 	err = takingUser.Earn(tx, amount)
 	if err != nil {
-		log.Printf("error earning donate amount: %v", err)
+		slog.Warn(fmt.Sprintf("error earning donate amount: %v", err))
 		genericError(s, i)
 		return
 	}
 	err = tx.Commit()
 	if err != nil {
-		log.Printf("error committing transaction: %v", err)
+		slog.Warn(fmt.Sprintf("error committing transaction: %v", err))
 		genericError(s, i)
 		return
 	}

@@ -5,7 +5,8 @@ import (
 	"bet/core/events"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -90,14 +91,19 @@ func (c *BetCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	slog.Debug("bet interaction started")
 	options := i.ApplicationCommandData().Options
 	event, err := c.Core.GetEvent(options[0].Name)
 	if err != nil {
-		log.Printf("error getting event %s: %v", options[0].Name, err)
+		slog.Warn(fmt.Sprintf("error getting event %s: %v", options[0].Name, err))
+		genericError(s, i)
+		return
 	}
 	messageTime, err := discordgo.SnowflakeTimestamp(i.ID)
 	if err != nil {
-		log.Printf("could not get timestamp from id: %v", err)
+		slog.Warn(fmt.Sprintf("could not get timestamp from id: %v", err))
+		// We at least have a fallback for this one
+		messageTime = time.Now()
 	}
 	uid := i.Interaction.Member.User.ID
 
@@ -114,7 +120,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		} else if overUnder == "=" {
 			direction = events.EQUAL
 		} else {
-			log.Printf("invalid over/under: %s", overUnder)
+			slog.Debug(fmt.Sprintf("invalid over/under: %s", overUnder))
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
@@ -130,7 +136,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		}
 		placedBet, err := event.Wager(uid, amount, messageTime, b)
 		if err != nil {
-			log.Printf("DEBUG: error placing wager: %v", err)
+			slog.Warn(fmt.Sprintf("DEBUG: error placing wager: %v", err))
 			if errors.Is(err, &core.BalanceError{}) {
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -154,7 +160,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		}
 		p, ok := placedBet.(events.PlacedBet)
 		if !ok {
-			log.Printf("DEBUG: bad return from placed wager: %v", err)
+			slog.Warn(fmt.Sprintf("bad return from placed wager: %v", err))
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
@@ -179,7 +185,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 			},
 		})
 	default:
-		log.Println("no valid event specified")
+		slog.Debug("no valid event specified")
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{

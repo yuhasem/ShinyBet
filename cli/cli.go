@@ -17,28 +17,34 @@ func Loop() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Printf("> ")
-		// TODO: breaking because it needs a double new line.  Can I find a way
-		// to use Scan instead?  Are there other examples of a Go cli loop I can
-		// steal?
-		command, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Printf("error: %v\n", err)
-			continue
+		oneCommand(reader)
+	}
+}
+
+func oneCommand(stdin *bufio.Reader) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error(fmt.Sprintf("recovering from panic in cli: %s", r))
 		}
-		// The combination of these 2 should work on Linux/Windows environments.
-		command = strings.TrimSuffix(command, "\n")
-		command = strings.TrimSuffix(command, "\r")
-		tokens := strings.Split(command, " ")
-		if len(tokens) == 0 {
-			fmt.Println("no command given")
-			continue
-		}
-		switch tokens[0] {
-		case "debug":
-			handleDebug(tokens[1:]...)
-		default:
-			fmt.Printf("not a command: %s\n", tokens[0])
-		}
+	}()
+	command, err := stdin.ReadString('\n')
+	if err != nil {
+		fmt.Printf("error: %v\n", err)
+		return
+	}
+	// The combination of these 2 should work on Linux/Windows environments.
+	command = strings.TrimSuffix(command, "\n")
+	command = strings.TrimSuffix(command, "\r")
+	tokens := strings.Split(command, " ")
+	if len(tokens) == 0 {
+		fmt.Println("no command given")
+		return
+	}
+	switch tokens[0] {
+	case "debug":
+		handleDebug(tokens[1:]...)
+	default:
+		fmt.Printf("not a command: %s\n", tokens[0])
 	}
 }
 

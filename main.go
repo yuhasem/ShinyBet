@@ -92,6 +92,11 @@ func main() {
 		"ledger":      &commands.LedgerCommand{Core: core},
 	}
 	dg.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error(fmt.Sprintf("recovering from panic in discord command handler: %s", r))
+			}
+		}()
 		if h, ok := cs[i.ApplicationCommandData().Name]; ok {
 			h.Interaction(s, i)
 		}

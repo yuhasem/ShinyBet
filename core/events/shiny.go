@@ -95,7 +95,7 @@ func loadEvent(event *ShinyEvent) {
 		// TODO: Update should write current phase length, and we should read it
 		// back here.
 		event.opened = openTs
-		event.open = !closeTs.Before(openTs)
+		event.open = !closeTs.After(openTs)
 	}
 	if !gotRow {
 		slog.Debug("no existing shiny event row")

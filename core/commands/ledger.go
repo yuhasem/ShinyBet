@@ -12,11 +12,11 @@ import (
 
 var (
 	ledgerReqs = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/ledger_total",
+		Name: "core_commands_ledger_total",
 		Help: "Number of times /ledger was called",
 	})
 	ledgerSuccess = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/ledger_success",
+		Name: "core_commands_ledger_success",
 		Help: "Number of times /ledger succeeded",
 	})
 )

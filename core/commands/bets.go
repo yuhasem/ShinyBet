@@ -12,11 +12,11 @@ import (
 
 var (
 	betsReqs = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/bets_total",
+		Name: "core_commands_bets_total",
 		Help: "Number of times /bets was called",
 	})
 	betsSuccess = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/betes_success",
+		Name: "core_commands_bets_success",
 		Help: "Number of times /bets succeeded",
 	})
 )

@@ -13,11 +13,11 @@ import (
 
 var (
 	balanceReqs = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/balance_total",
+		Name: "core_commands_balance_total",
 		Help: "Number of times /balance was called",
 	})
 	balanceSuccess = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/balance_success",
+		Name: "core_commands_balance_success",
 		Help: "Number of times /balance succeeded",
 	})
 )

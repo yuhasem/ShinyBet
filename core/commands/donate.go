@@ -13,11 +13,11 @@ import (
 
 var (
 	donateReqs = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/doante_total",
+		Name: "core_commands_donate_total",
 		Help: "Number of times /donate was called",
 	})
 	donateSuccess = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/donate_success",
+		Name: "core_commands_donate_success",
 		Help: "Number of times /donate succeeded",
 	})
 )

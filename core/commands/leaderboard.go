@@ -12,11 +12,11 @@ import (
 
 var (
 	leaderboardReqs = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/leaderboard_total",
+		Name: "core_commands_leaderboard_total",
 		Help: "Number of times /leaderboard was called",
 	})
 	leaderboardSuccess = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/leaderboard_success",
+		Name: "core_commands_leaderboard_success",
 		Help: "Number of times /leaderboard succeeded",
 	})
 )

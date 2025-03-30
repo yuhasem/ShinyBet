@@ -21,15 +21,15 @@ const shinyEventName = "shiny"
 
 var (
 	currentPhase = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "core/events/shiny_current_phase",
+		Name: "core_events_shiny_current_phase",
 		Help: "The current phase as seen by the shiny event.",
 	})
 	wagerReqs = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/events/shiny_wagers_total",
+		Name: "core_events_shiny_wagers_total",
 		Help: "Total number of times Wager was called for shiny event.",
 	})
 	wagerSuccess = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/events/shiny_wagers_success",
+		Name: "core_events_shiny_wagers_success",
 		Help: "Total number of times Wager call succeeded for shiny event.",
 	})
 )

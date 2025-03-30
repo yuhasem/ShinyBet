@@ -13,9 +13,26 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const shinyEventName = "shiny"
+
+var (
+	currentPhase = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "core/events/shiny_current_phase",
+		Help: "The current phase as seen by the shiny event.",
+	})
+	wagerReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/events/shiny_wagers_total",
+		Help: "Total number of times Wager was called for shiny event.",
+	})
+	wagerSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/events/shiny_wagers_success",
+		Help: "Total number of times Wager call succeeded for shiny event.",
+	})
+)
 
 type ShinyEvent struct {
 	mu   sync.Mutex
@@ -219,6 +236,7 @@ func (e *ShinyEvent) Update(current int) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.current = current
+	currentPhase.Set(float64(current))
 }
 
 func (e *ShinyEvent) Close(closed time.Time) error {
@@ -409,6 +427,7 @@ func (e *ShinyEvent) bets() ([]*internalBet, error) {
 }
 
 func (e *ShinyEvent) Wager(uid string, amount int, placed time.Time, inputBet any) (any, error) {
+	wagerReqs.Inc()
 	if !e.open {
 		return nil, fmt.Errorf("betting is closed")
 	}
@@ -438,6 +457,7 @@ func (e *ShinyEvent) Wager(uid string, amount int, placed time.Time, inputBet an
 	if err := transaction.Commit(); err != nil {
 		return nil, err
 	}
+	wagerSuccess.Inc()
 	return PlacedBet{Amount: amount, Risk: r}, nil
 }
 

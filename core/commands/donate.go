@@ -7,6 +7,19 @@ import (
 	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	donateReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/doante_total",
+		Help: "Number of times /donate was called",
+	})
+	donateSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/donate_success",
+		Help: "Number of times /donate succeeded",
+	})
 )
 
 type DonateCommand struct {
@@ -35,6 +48,7 @@ func (c *DonateCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *DonateCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	donateReqs.Inc()
 	slog.Debug("donate interaction started")
 	options := i.ApplicationCommandData().Options
 	if options[0].IntValue() < 0 {
@@ -45,6 +59,7 @@ func (c *DonateCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 				Content: "It was worth a shot, wasn't it?",
 			},
 		})
+		donateSuccess.Inc()
 		return
 	}
 	if options[0].IntValue() == 0 {
@@ -122,4 +137,5 @@ func (c *DonateCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 			},
 		},
 	})
+	donateSuccess.Inc()
 }

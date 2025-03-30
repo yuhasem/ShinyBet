@@ -6,6 +6,19 @@ import (
 	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	betsReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/bets_total",
+		Help: "Number of times /bets was called",
+	})
+	betsSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/betes_success",
+		Help: "Number of times /bets succeeded",
+	})
 )
 
 type ListBetsCommand struct {
@@ -20,6 +33,7 @@ func (c *ListBetsCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *ListBetsCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	betsReqs.Inc()
 	uid := i.Interaction.Member.User.ID
 	slog.Debug("bets interaction started", "user", uid)
 	rows, err := c.Core.Database.LoadUserBets(uid)
@@ -62,4 +76,5 @@ func (c *ListBetsCommand) Interaction(s *discordgo.Session, i *discordgo.Interac
 			},
 		},
 	})
+	betsSuccess.Inc()
 }

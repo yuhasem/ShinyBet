@@ -9,6 +9,19 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	betReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/bet_total",
+		Help: "Number of times /bet was called",
+	})
+	betSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/bet_success",
+		Help: "Number of times /bet succeeded",
+	})
 )
 
 type BetCommand struct {
@@ -91,6 +104,7 @@ func (c *BetCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	betReqs.Inc()
 	slog.Debug("bet interaction started")
 	options := i.ApplicationCommandData().Options
 	event, err := c.Core.GetEvent(options[0].Name)
@@ -136,7 +150,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		}
 		placedBet, err := event.Wager(uid, amount, messageTime, b)
 		if err != nil {
-			slog.Warn(fmt.Sprintf("DEBUG: error placing wager: %v", err))
+			slog.Warn(fmt.Sprintf("error placing wager: %v", err))
 			if errors.Is(err, &core.BalanceError{}) {
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -193,4 +207,5 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 			},
 		})
 	}
+	betSuccess.Inc()
 }

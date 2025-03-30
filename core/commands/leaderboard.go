@@ -6,6 +6,19 @@ import (
 	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	leaderboardReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/leaderboard_total",
+		Help: "Number of times /leaderboard was called",
+	})
+	leaderboardSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/leaderboard_success",
+		Help: "Number of times /leaderboard succeeded",
+	})
 )
 
 type LeaderboardCommand struct {
@@ -20,6 +33,7 @@ func (c *LeaderboardCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *LeaderboardCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	leaderboardReqs.Inc()
 	slog.Debug("leaderboard interaction started")
 	rows, err := c.Core.Database.Leaderboard()
 	if err != nil {
@@ -49,4 +63,5 @@ func (c *LeaderboardCommand) Interaction(s *discordgo.Session, i *discordgo.Inte
 			},
 		},
 	})
+	leaderboardSuccess.Inc()
 }

@@ -7,6 +7,19 @@ import (
 	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	balanceReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/balance_total",
+		Help: "Number of times /balance was called",
+	})
+	balanceSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/balance_success",
+		Help: "Number of times /balance succeeded",
+	})
 )
 
 type BalanceCommand struct {
@@ -29,6 +42,7 @@ func (c *BalanceCommand) Command() *discordgo.ApplicationCommand {
 }
 
 func (c *BalanceCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	balanceReqs.Inc()
 	uid := i.Interaction.Member.User.ID
 	slog.Debug("balance interaction started", "user", uid)
 	message := "You have"
@@ -57,4 +71,5 @@ func (c *BalanceCommand) Interaction(s *discordgo.Session, i *discordgo.Interact
 			Content: fmt.Sprintf("%s %d cakes (%d in bets)", message, balance, inBets),
 		},
 	})
+	balanceSuccess.Inc()
 }

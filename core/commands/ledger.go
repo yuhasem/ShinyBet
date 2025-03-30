@@ -6,6 +6,19 @@ import (
 	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	ledgerReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/ledger_total",
+		Help: "Number of times /ledger was called",
+	})
+	ledgerSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/ledger_success",
+		Help: "Number of times /ledger succeeded",
+	})
 )
 
 type LedgerCommand struct {
@@ -36,6 +49,7 @@ func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
 // TODO: This should probably also contain some kind of useful summary, like
 // what bets have already won/lost and how much weight that has on the pot.
 func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ledgerReqs.Inc()
 	slog.Debug("ledge interaction started")
 	eid := i.ApplicationCommandData().Options[0].StringValue()
 	event, err := c.Core.GetEvent(eid)
@@ -78,4 +92,5 @@ func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 			},
 		},
 	})
+	ledgerSuccess.Inc()
 }

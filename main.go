@@ -9,11 +9,13 @@ import (
 	"bet/state"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Command interface {
@@ -119,6 +121,9 @@ func main() {
 	defer dg.Close()
 
 	go cli.Loop()
+
+	http.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(":2112", nil)
 
 	sigch := make(chan os.Signal, 1)
 	signal.Notify(sigch, os.Interrupt)

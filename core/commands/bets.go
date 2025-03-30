@@ -69,11 +69,6 @@ func (c *ListBetsCommand) Interaction(s *discordgo.Session, i *discordgo.Interac
 		Data: &discordgo.InteractionResponseData{
 			Flags:   discordgo.MessageFlagsEphemeral,
 			Content: content,
-			AllowedMentions: &discordgo.MessageAllowedMentions{
-				// Let's the user be tagged by ID so their name appears without
-				// pinging them everytime anyone uses the leaderboard command.
-				Parse: []discordgo.AllowedMentionType{},
-			},
 		},
 	})
 	betsSuccess.Inc()

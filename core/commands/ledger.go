@@ -87,7 +87,7 @@ func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 			Content: message,
 			AllowedMentions: &discordgo.MessageAllowedMentions{
 				// Let's the user be tagged by ID so their name appears without
-				// pinging them everytime anyone uses the leaderboard command.
+				// pinging them everytime anyone uses the ledger command.
 				Parse: []discordgo.AllowedMentionType{},
 			},
 		},

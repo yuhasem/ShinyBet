@@ -132,7 +132,9 @@ func (c *DonateCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 			Content: fmt.Sprintf("<@%s> donated %d cakes to <@%s>!", givingUserID, amount, takingUserID),
 			AllowedMentions: &discordgo.MessageAllowedMentions{
 				// Let's the user be tagged by ID so their name appears without
-				// pinging them everytime anyone uses the leaderboard command.
+				// pinging them everytime anyone uses the donate command.
+				// TODO: consider allowing taking user to be pinged, but this
+				// could be a spam vector.
 				Parse: []discordgo.AllowedMentionType{},
 			},
 		},

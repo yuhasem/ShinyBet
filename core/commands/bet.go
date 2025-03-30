@@ -138,6 +138,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
+					Flags:   discordgo.MessageFlagsEphemeral,
 					Content: "Must specify either 'over' or 'under' for the phase length.  For example: `/bet shiny 69 under 420`",
 				},
 			})
@@ -155,6 +156,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
+						Flags:   discordgo.MessageFlagsEphemeral,
 						Content: "You don't have enough cakes to make that bet!",
 					},
 				})
@@ -164,6 +166,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
+						Flags:   discordgo.MessageFlagsEphemeral,
 						Content: "The predicted phase needs to be greater than the current phase!",
 					},
 				})
@@ -178,7 +181,12 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: "Your bet was accepted.",
+					Content: fmt.Sprintf("<@%s>'s bet was accepted.", uid),
+					AllowedMentions: &discordgo.MessageAllowedMentions{
+						// Let's the user be tagged by ID so their name appears
+						// without pinging them.
+						Parse: []discordgo.AllowedMentionType{},
+					},
 				},
 			})
 			return
@@ -195,7 +203,12 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("You put %d cakes on the phase being %s %d encounters (%.2f%% risk).", p.Amount, str, phase, p.Risk*100),
+				Content: fmt.Sprintf("<@%s> put %d cakes on the phase being %s %d encounters (%.2f%% risk).", uid, p.Amount, str, phase, p.Risk*100),
+				AllowedMentions: &discordgo.MessageAllowedMentions{
+					// Let's the user be tagged by ID so their name appears
+					// without pinging them.
+					Parse: []discordgo.AllowedMentionType{},
+				},
 			},
 		})
 	default:
@@ -203,6 +216,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
+				Flags:   discordgo.MessageFlagsEphemeral,
 				Content: "That's not an event you can bet on.",
 			},
 		})

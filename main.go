@@ -92,6 +92,7 @@ func main() {
 		"bets":        &commands.ListBetsCommand{Core: core},
 		"donate":      &commands.DonateCommand{Core: core},
 		"ledger":      &commands.LedgerCommand{Core: core},
+		"soon":        &commands.SoonCommand{Core: core},
 	}
 	dg.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		defer func() {

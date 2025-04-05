@@ -4,6 +4,7 @@ import (
 	"bet/core"
 	"bet/core/db"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -100,5 +101,50 @@ func TestClose(t *testing.T) {
 	}
 	if inBets != 0 {
 		t.Errorf("user 1 should have 0 in bets but has %d", inBets)
+	}
+}
+
+func TestSummary(t *testing.T) {
+	c := core.New(db.Fake())
+	e := NewShinyEvent(c, nil, "")
+	open, _ := time.Parse(time.DateTime, "2025-01-01 00:00:00")
+	e.Open(open)
+	// Resolved wagers
+	e.Wager("user1", 100, open.Add(time.Second), Bet{Direction: GREATER, Phase: 420}) // risk ~0.05
+	e.Wager("user2", 100, open.Add(time.Second), Bet{Direction: GREATER, Phase: 507}) // risk ~0.06
+	e.Wager("user3", 100, open.Add(time.Second), Bet{Direction: EQUAL, Phase: 500})
+	e.Wager("user4", 100, open.Add(time.Second), Bet{Direction: LESS, Phase: 500})
+	// Unresolved wagers
+	e.Wager("user1", 100, open.Add(time.Second), Bet{Direction: LESS, Phase: 11356})   // risk ~0.25
+	e.Wager("user5", 100, open.Add(time.Second), Bet{Direction: GREATER, Phase: 5678}) // risk ~0.5
+	e.Update(1000)
+
+	summary, err := e.BetsSummary("risk")
+	if err != nil {
+		t.Errorf("unexpected error in BetsSummary(): %v", err)
+	}
+	want := "There are 600 cakes in bets on the shiny event."
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted total cakes like %s", summary, want)
+	}
+	want = "200 cakes are guaranteed"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted guaranteed payout like %s", summary, want)
+	}
+	want = "200 cakes are in unresolved bets"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted guaranteed payout like %s", summary, want)
+	}
+	want = "11.00 is the risk adjusted pool"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted guarantted winners like %s", summary, want)
+	}
+	want = " * <@user5> placed 100 cakes on phase > 5678 (50.00% risk)"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted bet line like %s", summary, want)
+	}
+	want = " * <@user1> placed 100 cakes on phase < 11356 (25.00% risk)"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted bet line like %s", summary, want)
 	}
 }

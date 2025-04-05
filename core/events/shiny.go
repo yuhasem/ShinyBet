@@ -494,6 +494,10 @@ func (e *ShinyEvent) risk(bet Bet) (float64, error) {
 
 func (e *ShinyEvent) Interpret(blob string) string {
 	bet := betFrom(blob)
+	return interpretBet(bet)
+}
+
+func interpretBet(bet Bet) string {
 	sign := ""
 	switch bet.Direction {
 	case LESS:
@@ -505,3 +509,75 @@ func (e *ShinyEvent) Interpret(blob string) string {
 	}
 	return fmt.Sprintf("phase %s %d", sign, bet.Phase)
 }
+
+func (e *ShinyEvent) BetsSummary(style string) (string, error) {
+	bets, err := e.bets()
+	if err != nil {
+		return "", nil
+	}
+	// First collect the bets into 3 groups.  Unresolved, guaranteed win, and
+	// guaranteed loss.
+	unresolvedBets := make([]*internalBet, 0, len(bets))
+	var inLosers int
+	var inWinners float64
+	// Also collect total amount of currency on the bet.
+	var total int
+	var inUnresolved int
+	for _, b := range bets {
+		total += b.amount
+		if b.bet.Phase >= e.current {
+			unresolvedBets = append(unresolvedBets, b)
+			inUnresolved += b.amount
+			continue
+		}
+		if b.bet.Direction == GREATER {
+			inWinners += float64(b.amount) * b.risk
+		} else {
+			inLosers += b.amount
+		}
+	}
+	message := fmt.Sprintf("There are %d cakes in bets on the %s event.\n", total, shinyEventName)
+	message += fmt.Sprintf(" * %d cakes are guaranteed to be in the payout\n", inLosers)
+	message += fmt.Sprintf(" * %d cakes are in unresolved bets\n", inUnresolved)
+	message += fmt.Sprintf(" * %.2f is the risk adjusted pool of guaranteed winners\n", inWinners)
+	switch style {
+	case "risk":
+		slices.SortFunc(unresolvedBets, sortByAdjustedRisk)
+		message += "\nThe unresolved bets with the highest risk adjusted factor are:"
+	case "soon":
+		slices.SortFunc(unresolvedBets, sortByUpcoming)
+		message += "\nThe unresolved bets that will resolve next are:"
+	}
+	for i, b := range unresolvedBets {
+		// Discord has a limit of 2000 characters per message.  This limit gives
+		// us some leeway for the last append being oversized, and still enough
+		// room to write a closing message.
+		if len(message) > 1880 {
+			message += fmt.Sprintf("\nAnd %d other bets.", len(unresolvedBets)-i)
+			return message, nil
+		}
+		message += fmt.Sprintf("\n * <@%s> placed %d cakes on %s (%.2f%% risk)", b.uid, b.amount, interpretBet(b.bet), b.risk*100)
+	}
+	return message, nil
+}
+
+func sortByAdjustedRisk(a, b *internalBet) int {
+	return int(float64(b.amount)*b.risk - float64(a.amount)*a.risk)
+}
+
+func sortByUpcoming(a, b *internalBet) int {
+	return a.bet.Phase - b.bet.Phase
+}
+
+/*
+There are 400 cakes in bets on the shiny event.
+ * 200 cakes are guaranteed to be in the payout
+ * XXX cakes are in unresolved bets
+ * and 1.32 is the risk adjusted pool of guaranteed winners
+
+The unresolved bets with the highest risk adjusted factor are:
+
+
+    @43Cakes placed 100 cakes on phase > 20000 (91.25% risk)
+
+*/

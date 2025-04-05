@@ -11,24 +11,24 @@ import (
 )
 
 var (
-	ledgerReqs = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/ledger_total",
+	soonReqs = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/soon_total",
 		Help: "Number of times /ledger was called",
 	})
-	ledgerSuccess = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "core/commands/ledger_success",
+	soonSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "core/commands/soon_success",
 		Help: "Number of times /ledger succeeded",
 	})
 )
 
-type LedgerCommand struct {
+type SoonCommand struct {
 	Core *core.Core
 }
 
-func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
+func (c *SoonCommand) Command() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        "ledger",
-		Description: "See a summary of bets focusing on impactful bets.",
+		Name:        "soon",
+		Description: "See a summary of bets focusing on upcoming bets.",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Name:        "event",
@@ -46,9 +46,9 @@ func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
 	}
 }
 
-func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	ledgerReqs.Inc()
-	slog.Debug("ledge interaction started")
+func (c *SoonCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	soonReqs.Inc()
+	slog.Debug("soon interaction started")
 	eid := i.ApplicationCommandData().Options[0].StringValue()
 	event, err := c.Core.GetEvent(eid)
 	if err != nil {
@@ -56,7 +56,7 @@ func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 		genericError(s, i)
 		return
 	}
-	summary, err := event.BetsSummary("risk")
+	summary, err := event.BetsSummary("soon")
 	if err != nil {
 		slog.Warn(fmt.Sprintf("error getting bets summary: %v", err))
 		genericError(s, i)
@@ -74,5 +74,5 @@ func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 			},
 		},
 	})
-	ledgerSuccess.Inc()
+	soonSuccess.Inc()
 }

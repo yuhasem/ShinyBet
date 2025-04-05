@@ -562,7 +562,13 @@ func (e *ShinyEvent) BetsSummary(style string) (string, error) {
 }
 
 func sortByAdjustedRisk(a, b *internalBet) int {
-	return int(float64(b.amount)*b.risk - float64(a.amount)*a.risk)
+	diff := float64(b.amount)*b.risk - float64(a.amount)*a.risk
+	if diff > 0 {
+		return 1
+	} else if diff < 0 {
+		return -1
+	}
+	return 0
 }
 
 func sortByUpcoming(a, b *internalBet) int {

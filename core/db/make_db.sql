@@ -26,13 +26,15 @@ CREATE TABLE bets(
 	PRIMARY KEY (uid, placed)
 );
 
-CREATE VIEW leaderboard(id, balance) AS
-SELECT id, balance
-FROM users
-ORDER BY balance DESC
-LIMIT 10;
+CREATE VIEW leaderboard(id, balance, rank) AS
+SELECT id, balance, row_number() OVER()
+FROM (
+  SELECT id, balance
+  FROM users
+  ORDER BY balance DESC
+);
 
-INSERT OR REPLACE INTO events VALUES('shiny', '2025-03-01 00:00:00.000', '2025-02-28 00:00:00.000', '5000');
+INSERT OR REPLACE INTO events VALUES('shiny', '2025-03-01 00:00:00', '2025-02-28 00:00:00', '5000');
 INSERT OR REPLACE INTO users VALUES('user1', 1000, 0);
 INSERT OR REPLACE INTO users VALUES('user2', 500, 100);
 INSERT OR REPLACE INTO bets VALUES('user2', 'shiny', '2025-03-01 01:00:00.000', 100, 0.567, 'true,10000');

@@ -21,8 +21,10 @@ CREATE TABLE bets(
 	PRIMARY KEY (uid, placed)
 );
 
-CREATE VIEW leaderboard(id, balance) AS
-SELECT id, balance
-FROM users
-ORDER BY balance DESC
-LIMIT 10;
+CREATE VIEW leaderboard(id, balance, rank) AS
+SELECT id, balance, row_number() OVER()
+FROM (
+  SELECT id, balance
+  FROM users
+  ORDER BY balance DESC
+);

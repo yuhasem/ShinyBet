@@ -63,12 +63,24 @@ func (c *BalanceCommand) Interaction(s *discordgo.Session, i *discordgo.Interact
 		genericError(s, i)
 		return
 	}
+	row, err := c.Core.Database.Rank(uid)
+	var rank int
+	for row.Next() {
+		if err := row.Scan(&rank); err != nil {
+			// Don't return in this case, just degrade to showing balance/bets.
+			slog.Warn(fmt.Sprintf("could not load rank for user %s: %v", uid, err))
+		}
+	}
+	content := fmt.Sprintf("%s %d cakes (%d in bets)", message, balance, inBets)
+	if rank > 0 {
+		content += fmt.Sprintf(", rank %d on leaderboard", rank)
+	}
 	// Reply with a message like "@User has XXXX cake coins (YY in bets)"
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Flags:   discordgo.MessageFlagsEphemeral,
-			Content: fmt.Sprintf("%s %d cakes (%d in bets)", message, balance, inBets),
+			Content: content,
 		},
 	})
 	balanceSuccess.Inc()

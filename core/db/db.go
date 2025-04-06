@@ -19,6 +19,7 @@ type Database interface {
 	LoadBets(eid string) (Scanner, error)
 	Leaderboard() (Scanner, error)
 	LoadUserBets(uid string) (Scanner, error)
+	Rank(uid string) (Scanner, error)
 	OpenTransaction() (Transaction, error)
 }
 
@@ -83,6 +84,10 @@ func (d *DB) LoadUserBets(uid string) (Scanner, error) {
 	INNER JOIN events e ON b.eid = e.id
 	WHERE b.uid = ?
 	  AND unixepoch(b.placed) > unixepoch(e.lastOpen);`, uid)
+}
+
+func (d *DB) Rank(uid string) (Scanner, error) {
+	return d.db.Query(`SELECT rank FROM leaderboard WHERE id = ?`, uid)
 }
 
 func (d *DB) OpenTransaction() (Transaction, error) {

@@ -159,6 +159,36 @@ func TestLoadUserBets(t *testing.T) {
 	}
 }
 
+func TestRank(t *testing.T) {
+	for _, tc := range []struct {
+		user     string
+		wantRank int
+	}{
+		{
+			user:     "user1",
+			wantRank: 1,
+		},
+		{
+			user:     "user2",
+			wantRank: 2,
+		},
+	} {
+		rows, err := db.Rank(tc.user)
+		if err != nil {
+			t.Errorf("unexpected error getting rank: %s", err)
+		}
+		for rows.Next() {
+			var rank int
+			if err := rows.Scan(&rank); err != nil {
+				t.Errorf("unexpected errord scanning row: %s", err)
+			}
+			if rank != tc.wantRank {
+				t.Errorf("loaded rank %d, want %d", rank, tc.wantRank)
+			}
+		}
+	}
+}
+
 func TestWriteInBets(t *testing.T) {
 	tx, err := db.OpenTransaction()
 	if err != nil {

@@ -90,6 +90,10 @@ func (f *FakeDB) LoadUserBets(uid string) (Scanner, error) {
 	return &EventScanner{}, nil
 }
 
+func (f *FakeDB) Rank(uid string) (Scanner, error) {
+	return &EventScanner{}, nil
+}
+
 func (f *FakeDB) OpenTransaction() (Transaction, error) {
 	return &FakeTx{d: f}, nil
 }

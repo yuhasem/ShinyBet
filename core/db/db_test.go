@@ -1,13 +1,14 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"testing"
-	"time"
 )
 
-func setupDB(t *testing.T) (*DB, error) {
-	t.Helper()
+var db *DB
+
+func setupDB() (*DB, error) {
 	db, err := Open("file:test.db")
 	if err != nil {
 		return nil, err
@@ -23,26 +24,44 @@ func setupDB(t *testing.T) (*DB, error) {
 	return db, nil
 }
 
+func teardownDB(d *DB) error {
+	d.Close()
+	return os.Remove("test.db")
+}
+
 func TestLoadUsers(t *testing.T) {
-	db, err := setupDB(t)
-	if err != nil {
-		t.Fatalf("error while setting up db: %s", err)
-	}
-	defer db.Close()
-	_, err = db.LoadUsers()
+	rows, err := db.LoadUsers()
 	if err != nil {
 		t.Errorf("unexpected error loading users: %s", err)
+	}
+	// The returned rows MUST be iterated, otherwise the database stays locked.
+	for rows.Next() {
+	}
+}
+
+func TestLeaderboard(t *testing.T) {
+	rows, err := db.Leaderboard()
+	if err != nil {
+		t.Errorf("unexpected error loading leaderboard: %s", err)
+	}
+	want := []string{"user1,1000", "user2,500"}
+	got := []string{}
+	for rows.Next() {
+		var id string
+		var balance int
+		if err := rows.Scan(&id, &balance); err != nil {
+			t.Errorf("unexpected error during scan: %s", err)
+		}
+		got = append(got, fmt.Sprintf("%s,%d", id, balance))
+	}
+	for i, s := range got {
+		if s != want[i] {
+			t.Errorf("leaderboard row %d = %s, want %s", i, s, want[i])
+		}
 	}
 }
 
 func TestWriteInBets(t *testing.T) {
-	// TODO: failing with "database is locked (5) (SQLITE_BUSY)"
-	db, err := setupDB(t)
-	if err != nil {
-		t.Fatalf("error while setting up db: %s", err)
-	}
-	defer db.Close()
-
 	tx, err := db.OpenTransaction()
 	if err != nil {
 		t.Fatalf("error while opening transaction: %s", err)
@@ -77,4 +96,16 @@ func TestWriteInBets(t *testing.T) {
 	if i != 2 {
 		t.Errorf("expected 2 rows, got %d", i)
 	}
+}
+
+func TestMain(m *testing.M) {
+	d, err := setupDB()
+	db = d
+	if err != nil {
+		fmt.Printf("error setting up db: %v", err)
+		os.Exit(1)
+	}
+	code := m.Run()
+	teardownDB(db)
+	os.Exit(code)
 }

@@ -73,7 +73,7 @@ func (d *DB) LoadBets(eid string) (Scanner, error) {
 }
 
 func (d *DB) Leaderboard() (Scanner, error) {
-	return d.db.Query(`SELECT * FROM leaderboard;`)
+	return d.db.Query(`SELECT id, balance FROM leaderboard LIMIT 10;`)
 }
 
 func (d *DB) LoadUserBets(uid string) (Scanner, error) {

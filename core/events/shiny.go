@@ -166,12 +166,6 @@ type PlacedBet struct {
 	Risk   float64
 }
 
-const (
-	LESS    = 0
-	EQUAL   = 1
-	GREATER = 2
-)
-
 // Bet is a bet that a shiny will be less than or greater than a phase length.
 type Bet struct {
 	Direction int

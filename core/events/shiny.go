@@ -373,10 +373,19 @@ func (e *ShinyEvent) Close(closed time.Time) error {
 		if len(deltas) > 0 {
 			message += "\nNet cake gains/losses:"
 		}
-		for _, d := range deltas {
+		for i, d := range deltas {
 			user, _ := e.core.GetUser(d.uid)
 			balance, _, _ := user.Balance()
-			message += fmt.Sprintf("\n * <@%s>: %+d (new balance %d cakes)", d.uid, d.amount, balance)
+			nextDelta := fmt.Sprintf("\n * <@%s>: %+d (new balance %d cakes)", d.uid, d.amount, balance)
+			if len(message)+len(nextDelta) >= 1975 {
+				// The message will be too long for Discord, so cut it off here
+				// and add a little suffix.
+				// TODO: Could we print multiple messages instead?  This is
+				// the one place I wouldn't want to compromise.
+				message += fmt.Sprintf("and %d other participants", len(deltas)-i)
+				break
+			}
+			message += nextDelta
 		}
 		if _, err := e.session.ChannelMessageSendComplex(e.channel, &discordgo.MessageSend{
 			Content: message,

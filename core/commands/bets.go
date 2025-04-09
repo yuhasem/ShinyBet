@@ -43,6 +43,7 @@ func (c *ListBetsCommand) Interaction(s *discordgo.Session, i *discordgo.Interac
 		return
 	}
 	content := fmt.Sprintf("<@%s> has the following open bets:", uid)
+	var notListed int
 	for rows.Next() {
 		var eid string
 		var amount int
@@ -62,7 +63,18 @@ func (c *ListBetsCommand) Interaction(s *discordgo.Session, i *discordgo.Interac
 		} else {
 			blobInterpret = event.Interpret(blob)
 		}
-		content += fmt.Sprintf("\n 1. %d cakes on %s (%s), risk %.2f%%", amount, eid, blobInterpret, risk*100)
+		nextBet := fmt.Sprintf("\n 1. %d cakes on %s (%s), risk %.2f%%", amount, eid, blobInterpret, risk*100)
+		if len(content)+len(nextBet) >= 1980 {
+			// The message will be too big if we add this, so skip it and add a
+			// small message at the end to let the user know.  We still need to
+			// iterate all the way through `rows` otherwise we lock the db.
+			notListed++
+			continue
+		}
+		content += nextBet
+	}
+	if notListed > 0 {
+		content += fmt.Sprintf("\nand %d other bets.")
 	}
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,

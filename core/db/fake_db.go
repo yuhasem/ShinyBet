@@ -4,15 +4,45 @@ import (
 	"time"
 )
 
-// Implements Scanner interface for LoadEvent mock return
-type EventScanner struct {
+// Temporary before scanners for each load type are actually built.
+type EmptyScanner struct{}
+
+func (s *EmptyScanner) Next() bool          { return false }
+func (s *EmptyScanner) NextResultSet() bool { return true }
+func (s *EmptyScanner) Scan(...any) error   { return nil }
+
+type testEvent struct {
+	opened  string
+	closed  string
+	details string
 }
 
-func (s *EventScanner) Next() bool { return false }
+// Implements Scanner interface for LoadEvent mock return
+type EventScanner struct {
+	id    string
+	event testEvent
+	done  bool
+}
+
+func (s *EventScanner) Next() bool {
+	ret := s.done
+	s.done = true
+	return !ret
+}
 
 func (s *EventScanner) NextResultSet() bool { return true }
 
-func (s *EventScanner) Scan(v ...any) error { return nil }
+func (s *EventScanner) Scan(v ...any) error {
+	idPtr := v[0].(*string)
+	*idPtr = s.id
+	openPtr := v[1].(*string)
+	*openPtr = s.event.opened
+	closePtr := v[2].(*string)
+	*closePtr = s.event.closed
+	detPtr := v[3].(*string)
+	*detPtr = s.event.details
+	return nil
+}
 
 type testBet struct {
 	uid    string
@@ -54,24 +84,31 @@ func (s *BetScanner) Scan(v ...any) error {
 // FakeDB implements the Database interface, but does not make any writes to an
 // actual database.
 type FakeDB struct {
-	bets []testBet
+	bets   []testBet
+	events map[string]testEvent
 }
 
 func Fake() Database {
-	return &FakeDB{}
+	return &FakeDB{
+		events: make(map[string]testEvent),
+	}
 }
 
 func (f *FakeDB) LoadEvent(eid string) (Scanner, error) {
-	return &EventScanner{}, nil
+	e, ok := f.events[eid]
+	if !ok {
+		e = testEvent{}
+	}
+	return &EventScanner{id: eid, event: e}, nil
 }
 
 func (f *FakeDB) LoadUsers() (Scanner, error) {
 	// TODO: actually should make a user scanner for this one.
-	return &EventScanner{}, nil
+	return &EmptyScanner{}, nil
 }
 
 func (f *FakeDB) LoadUser(uid string) (Scanner, error) {
-	return &EventScanner{}, nil
+	return &EmptyScanner{}, nil
 }
 
 func (f *FakeDB) LoadBets(eid string) (Scanner, error) {
@@ -83,15 +120,15 @@ func (f *FakeDB) LoadBets(eid string) (Scanner, error) {
 
 func (f *FakeDB) Leaderboard() (Scanner, error) {
 	// TODO: should have it's own scanner.
-	return &EventScanner{}, nil
+	return &EmptyScanner{}, nil
 }
 
 func (f *FakeDB) LoadUserBets(uid string) (Scanner, error) {
-	return &EventScanner{}, nil
+	return &EmptyScanner{}, nil
 }
 
 func (f *FakeDB) Rank(uid string) (Scanner, error) {
-	return &EventScanner{}, nil
+	return &EmptyScanner{}, nil
 }
 
 func (f *FakeDB) OpenTransaction() (Transaction, error) {
@@ -138,10 +175,32 @@ func (f *FakeTx) WriteBet(uid string, eid string, ts time.Time, amount int, risk
 }
 
 func (f *FakeTx) WriteOpened(eid string, opened time.Time) error {
+	e, ok := f.d.events[eid]
+	if !ok {
+		e = testEvent{}
+	}
+	e.opened = opened.Format(time.DateTime)
+	f.d.events[eid] = e
 	return nil
 }
 
 func (f *FakeTx) WriteClosed(eid string, closed time.Time) error {
+	e, ok := f.d.events[eid]
+	if !ok {
+		e = testEvent{}
+	}
+	e.closed = closed.Format(time.DateTime)
+	f.d.events[eid] = e
+	return nil
+}
+
+func (f *FakeTx) WriteEventDetails(eid string, details string) error {
+	e, ok := f.d.events[eid]
+	if !ok {
+		e = testEvent{}
+	}
+	e.details = details
+	f.d.events[eid] = e
 	return nil
 }
 

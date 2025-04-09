@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 type Core struct {
@@ -16,14 +18,17 @@ type Core struct {
 	users map[string]*user
 	// eventMu is a mutex to ensure that event closures do not overwrite user's
 	// state when committing to storage.
-	eventMu sync.Mutex
+	EventMu sync.Mutex
 	// Events is the list of events that Core is handling
 	events map[string]Event
 	// Database is used for persisting new users.
 	Database db.Database
+	// session is the Discord session that can be used for interacting outside
+	// of commands
+	session InteractionSession
 }
 
-func New(d db.Database) *Core {
+func New(d db.Database, session InteractionSession) *Core {
 	rows, err := d.LoadUsers()
 	if err != nil {
 		slog.Error(fmt.Sprintf("error loading users: %v", err))
@@ -42,6 +47,7 @@ func New(d db.Database) *Core {
 		users:    users,
 		events:   make(map[string]Event),
 		Database: d,
+		session:  session,
 	}
 }
 
@@ -122,4 +128,23 @@ func (c *Core) GetEvent(id string) (Event, error) {
 	}
 	slog.Warn(fmt.Sprintf("request for non existent event: %s", id))
 	return nil, fmt.Errorf("event of id %s is not registered", id)
+}
+
+// ///////////////////////
+// Discord Interactions //
+// ///////////////////////
+type InteractionSession interface {
+	ChannelMessageSendComplex(string, *discordgo.MessageSend, ...discordgo.RequestOption) (*discordgo.Message, error)
+}
+
+func (c *Core) SendMessage(channel, message string) error {
+	_, err := c.session.ChannelMessageSendComplex(channel, &discordgo.MessageSend{
+		Content: message,
+		AllowedMentions: &discordgo.MessageAllowedMentions{
+			// By default, we don't allow mentions so there's so the bot doesn't
+			// ping people awake.
+			Parse: []discordgo.AllowedMentionType{},
+		},
+	})
+	return err
 }

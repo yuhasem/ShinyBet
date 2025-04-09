@@ -108,6 +108,7 @@ type Transaction interface {
 	WriteBet(uid string, eid string, ts time.Time, amount int, risk float64, data string) error
 	WriteOpened(eid string, opened time.Time) error
 	WriteClosed(eid string, closed time.Time) error
+	WriteEventDetails(eid string, details string) error
 	RefreshBalance() error
 }
 
@@ -152,6 +153,11 @@ func (t *Tx) WriteOpened(eid string, opened time.Time) error {
 
 func (t *Tx) WriteClosed(eid string, closed time.Time) error {
 	_, err := t.tx.Exec("UPDATE events SET lastClose = ? WHERE id = ?", closed.Format(time.DateTime), eid)
+	return err
+}
+
+func (t *Tx) WriteEventDetails(eid string, details string) error {
+	_, err := t.tx.Exec("UPDATE events SET details = ? WHERE id = ?", details, eid)
 	return err
 }
 

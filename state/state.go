@@ -11,5 +11,8 @@ type State struct {
 			StartTime  string `json:"start_time"`
 			Encounters int    `json:"encounters"`
 		} `json:"current_phase"`
+		Totals struct {
+			TotalEncounters int `json:"total_encounters"`
+		} `json:"totals"`
 	} `json:"stats"`
 }

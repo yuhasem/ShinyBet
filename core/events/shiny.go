@@ -568,16 +568,3 @@ func sortByAdjustedRisk(a, b *internalBet) int {
 func sortByUpcoming(a, b *internalBet) int {
 	return a.bet.Phase - b.bet.Phase
 }
-
-/*
-There are 400 cakes in bets on the shiny event.
- * 200 cakes are guaranteed to be in the payout
- * XXX cakes are in unresolved bets
- * and 1.32 is the risk adjusted pool of guaranteed winners
-
-The unresolved bets with the highest risk adjusted factor are:
-
-
-    @43Cakes placed 100 cakes on phase > 20000 (91.25% risk)
-
-*/

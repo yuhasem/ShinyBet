@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/bwmarrin/discordgo"
 )
 
 type Core struct {
@@ -21,6 +23,9 @@ type Core struct {
 	events map[string]Event
 	// Database is used for persisting new users.
 	Database db.Database
+	// session is the Discord session that can be used for interacting outside
+	// of commands
+	session *discordgo.Session
 }
 
 func New(d db.Database) *Core {
@@ -122,4 +127,19 @@ func (c *Core) GetEvent(id string) (Event, error) {
 	}
 	slog.Warn(fmt.Sprintf("request for non existent event: %s", id))
 	return nil, fmt.Errorf("event of id %s is not registered", id)
+}
+
+// ///////////////////////
+// Discord Interactions //
+// ///////////////////////
+func (c *Core) SendMessage(channel, message string) error {
+	_, err := c.session.ChannelMessageSendComplex(channel, &discordgo.MessageSend{
+		Content: message,
+		AllowedMentions: &discordgo.MessageAllowedMentions{
+			// By default, we don't allow mentions so there's so the bot doesn't
+			// ping people awake.
+			Parse: []discordgo.AllowedMentionType{},
+		},
+	})
+	return err
 }

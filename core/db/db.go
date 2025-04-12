@@ -69,7 +69,8 @@ func (d *DB) LoadBets(eid string) (Scanner, error) {
 	SELECT b.* FROM bets b
 	INNER JOIN events e ON b.eid = e.id
 	WHERE e.id = ?
-	  AND unixepoch(b.placed) > unixepoch(e.lastOpen);
+	  AND unixepoch(b.placed) > unixepoch(e.lastOpen)
+	  AND unixepoch(b.placed) < unixepoch(e.lastClose);
 	`, eid)
 }
 

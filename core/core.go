@@ -28,7 +28,7 @@ type Core struct {
 	session *discordgo.Session
 }
 
-func New(d db.Database) *Core {
+func New(d db.Database, session *discordgo.Session) *Core {
 	rows, err := d.LoadUsers()
 	if err != nil {
 		slog.Error(fmt.Sprintf("error loading users: %v", err))
@@ -47,6 +47,7 @@ func New(d db.Database) *Core {
 		users:    users,
 		events:   make(map[string]Event),
 		Database: d,
+		session:  session,
 	}
 }
 

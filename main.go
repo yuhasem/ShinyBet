@@ -63,7 +63,7 @@ func main() {
 	defer database.Close()
 
 	// Create the core.
-	core := core.New(database)
+	core := core.New(database, dg)
 	if core == nil {
 		slog.Error("could not create core, exiting")
 		return

@@ -145,7 +145,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 			return
 		}
 		phase := int(options[2].IntValue())
-		b := events.Bet{
+		b := events.PhaseBet{
 			Direction: direction,
 			Phase:     phase,
 		}
@@ -175,7 +175,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 			genericError(s, i)
 			return
 		}
-		p, ok := placedBet.(events.PlacedBet)
+		p, ok := placedBet.(events.PlacedPhaseBet)
 		if !ok {
 			slog.Warn(fmt.Sprintf("bad return from placed wager: %v", err))
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

@@ -14,6 +14,36 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	currentPhase = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "core_events_shiny_current_phase",
+		Help: "The current phase seen by phase events",
+	},
+		[]string{
+			// The event that sees this phase
+			"event",
+		})
+	wagerReqs = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "core_events_shiny_wagers_total",
+		Help: "Total number of times Wager was called for shiny event.",
+	},
+		[]string{
+			// The event that was wagered on
+			"event",
+		})
+	wagerSuccess = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "core_events_shiny_wagers_success",
+		Help: "Total number of times Wager call succeeded for shiny event.",
+	},
+		[]string{
+			// The event that was wagered on
+			"event",
+		})
 )
 
 // State enum
@@ -33,6 +63,13 @@ const (
 type PhaseBet struct {
 	Direction int
 	Phase     int
+}
+
+// PlacedPhaseBet is the return from Wager(), that can be used to send a
+// detailed message to the user about the bet placed.
+type PlacedPhaseBet struct {
+	Amount int
+	Risk   float64
 }
 
 // Creates a bet from a string loaded from storage.
@@ -141,7 +178,7 @@ func (p *phaseLifecycle) Update(phase int) {
 		return
 	}
 	p.current = phase
-	// TODO: how do we want to update prom counters here?
+	currentPhase.WithLabelValues(p.eventId).Set(float64(phase))
 }
 
 func (p *phaseLifecycle) Close(close time.Time) error {
@@ -363,6 +400,77 @@ func sendMessage(c *core.Core, channel string, message string, userDelta map[str
 	}
 }
 
+type NoRiskError struct{}
+
+func (e NoRiskError) Error() string {
+	return "risk was either 0 or 1, which is disallowed"
+}
+
 func (p *phaseLifecycle) Wager(uid string, amount int, placed time.Time, bet any) (any, error) {
-	return nil, nil
+	wagerReqs.WithLabelValues(p.eventId).Inc()
+	if p.state != OPEN {
+		return nil, fmt.Errorf("betting is closed")
+	}
+	b, ok := bet.(PhaseBet)
+	if !ok {
+		return nil, fmt.Errorf("fourth argument must be of type PhaseBet")
+	}
+	r, err := p.risk(b)
+	if err != nil {
+		return nil, err
+	}
+	if r == 0.0 || r == 1.0 {
+		return nil, NoRiskError{}
+	}
+	user, err := p.core.GetUser(uid)
+	if err != nil {
+		return nil, err
+	}
+	transaction, err := p.core.Database.OpenTransaction()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := user.Reserve(transaction, amount); err != nil {
+		return nil, err
+	}
+	if err := transaction.WriteBet(uid, p.eventId, placed, amount, r, b.storage()); err != nil {
+		return nil, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return nil, err
+	}
+	wagerSuccess.WithLabelValues(p.eventId).Inc()
+	return PlacedPhaseBet{Amount: amount, Risk: r}, nil
+}
+
+type PhaseLengthError struct {
+}
+
+func (p PhaseLengthError) Error() string {
+	return "predicted phase cannot be less than the current phase"
+}
+
+func (p *phaseLifecycle) risk(bet PhaseBet) (float64, error) {
+	// Lock to get a consistent view of current
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.current < bet.Phase {
+		return 0.0, PhaseLengthError{}
+	}
+	// prob is the probability of a phase lasting longer than the guess. That's
+	// the risk for < bets.
+	prob := math.Pow(p.probability, float64(bet.Phase-p.current))
+	// For > bets, we need to reverse the odds to get risk
+	if bet.Direction == GREATER {
+		return 1 - prob, nil
+	}
+	if bet.Direction == EQUAL {
+		// Effectively multiply by 8192/8191 to subtract 1 from the length used
+		// to calculate psp, then multiply by 1/8192 for the shiny happening
+		// exactly on the predicted phase.  That is the probability that it is
+		// exactly that phase, so "1 -" to turn it into risk
+		return 1.0 - (prob / 8191.0), nil
+	}
+	return prob, nil
 }

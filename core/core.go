@@ -18,7 +18,7 @@ type Core struct {
 	users map[string]*user
 	// eventMu is a mutex to ensure that event closures do not overwrite user's
 	// state when committing to storage.
-	eventMu sync.Mutex
+	EventMu sync.Mutex
 	// Events is the list of events that Core is handling
 	events map[string]Event
 	// Database is used for persisting new users.

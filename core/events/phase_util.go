@@ -206,8 +206,13 @@ func (p *phaseLifecycle) Close(close time.Time) error {
 // event to the CLOSED state.  This is not part of the Event interface, but
 // allows for better timing control between CLOSING and CLOSED.
 func (p *phaseLifecycle) Resolve() error {
+	// Grab the event mutex so no more bets or updates can come in.
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	// Grab core's event lock as well, so we don't stomp on other events making
+	// user changes.
+	p.core.EventMu.Lock()
+	defer p.core.EventMu.Unlock()
 	if p.state != CLOSING {
 		return StateMachineError{expected: CLOSING, actual: p.state}
 	}
@@ -247,6 +252,7 @@ func (p *phaseLifecycle) Resolve() error {
 	if p.channel != "" {
 		sendMessage(p.core, p.channel, message, userDelta)
 	}
+	p.state = CLOSED
 	return nil
 }
 

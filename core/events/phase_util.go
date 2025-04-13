@@ -144,7 +144,6 @@ type phaseLifecycle struct {
 	// see State enum
 	state   int
 	current int
-	// opened  time.Time
 }
 
 // Open updates the database for the open time and resets state for tracking the
@@ -231,7 +230,7 @@ func (p *phaseLifecycle) Resolve() error {
 	payout, winnerTotal, userContribution := calculatePayout(bets, p.current)
 	refundAll := false
 	if winnerTotal == 0.0 {
-		slog.Info(fmt.Sprintf("Nobody won the %d event", p.eventId))
+		slog.Info(fmt.Sprintf("Nobody won the %s event", p.eventId))
 		message += "\nNo winning bets!  No changes to user balances."
 		refundAll = true
 	}
@@ -397,7 +396,9 @@ func sendMessage(c *core.Core, channel string, message string, userDelta map[str
 	for _, d := range deltas {
 		user, _ := c.GetUser(d.uid)
 		balance, _, err := user.Balance()
-		slog.Warn(fmt.Sprintf("error getting users balance: %s", err))
+		if err != nil {
+			slog.Warn(fmt.Sprintf("error getting users balance: %s", err))
+		}
 		message += fmt.Sprintf("\n * <@%s>: %+d (new balance %d cakes)", d.uid, d.amount, balance)
 	}
 	if err := c.SendMessage(channel, message); err != nil {
@@ -413,6 +414,10 @@ func (e NoRiskError) Error() string {
 }
 
 func (p *phaseLifecycle) Wager(uid string, amount int, placed time.Time, bet any) (any, error) {
+	// Lock to check p.state, and for p.risk which needs a consistent view of
+	// p.current
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	wagerReqs.WithLabelValues(p.eventId).Inc()
 	if p.state != OPEN {
 		return nil, fmt.Errorf("betting is closed")
@@ -458,10 +463,7 @@ func (p PhaseLengthError) Error() string {
 }
 
 func (p *phaseLifecycle) risk(bet PhaseBet) (float64, error) {
-	// Lock to get a consistent view of current
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.current < bet.Phase {
+	if bet.Phase < p.current {
 		return 0.0, PhaseLengthError{}
 	}
 	// prob is the probability of a phase lasting longer than the guess. That's

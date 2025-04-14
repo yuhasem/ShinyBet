@@ -474,11 +474,12 @@ func (p *phaseLifecycle) risk(bet PhaseBet) (float64, error) {
 		return 1 - prob, nil
 	}
 	if bet.Direction == EQUAL {
-		// Effectively multiply by 8192/8191 to subtract 1 from the length used
-		// to calculate psp, then multiply by 1/8192 for the shiny happening
-		// exactly on the predicted phase.  That is the probability that it is
-		// exactly that phase, so "1 -" to turn it into risk
-		return 1.0 - (prob / 8191.0), nil
+		// prob = P(phase > x) = (1-p)^x
+		// P(phase = x) = (1-p)^(x-1) * p
+		// So transform by: prob * (p / (1-p))
+		// and risk is 1 - P(phase = x)
+		return 1.0 - (prob * (p.probability / (1 - p.probability))), nil
 	}
-	return prob, nil
+	// tranfrom from <= to <
+	return prob * (1 / (1 - p.probability)), nil
 }

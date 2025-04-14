@@ -25,10 +25,10 @@ type Core struct {
 	Database db.Database
 	// session is the Discord session that can be used for interacting outside
 	// of commands
-	session *discordgo.Session
+	session InteractionSession
 }
 
-func New(d db.Database, session *discordgo.Session) *Core {
+func New(d db.Database, session InteractionSession) *Core {
 	rows, err := d.LoadUsers()
 	if err != nil {
 		slog.Error(fmt.Sprintf("error loading users: %v", err))
@@ -133,6 +133,10 @@ func (c *Core) GetEvent(id string) (Event, error) {
 // ///////////////////////
 // Discord Interactions //
 // ///////////////////////
+type InteractionSession interface {
+	ChannelMessageSendComplex(string, *discordgo.MessageSend, ...discordgo.RequestOption) (*discordgo.Message, error)
+}
+
 func (c *Core) SendMessage(channel, message string) error {
 	_, err := c.session.ChannelMessageSendComplex(channel, &discordgo.MessageSend{
 		Content: message,

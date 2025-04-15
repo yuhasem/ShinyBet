@@ -3,6 +3,7 @@ package events
 import (
 	"bet/core"
 	"bet/core/db"
+	"strings"
 	"testing"
 	"time"
 
@@ -270,5 +271,83 @@ func TestPhaseResolveNoChannel(t *testing.T) {
 	l.Resolve()
 	if s.SendCount != 0 {
 		t.Errorf("Expected 0 messages to be sent, instead %d were", s.SendCount)
+	}
+}
+
+func TestInterpretPhaseBet(t *testing.T) {
+	l := phaseLifecycle{}
+	for _, tc := range []struct {
+		input string
+		want  string
+	}{
+		{
+			input: "0,1",
+			want:  "phase < 1",
+		},
+		{
+			input: "1,100",
+			want:  "phase = 100",
+		},
+		{
+			input: "2,5678",
+			want:  "phase > 5678",
+		},
+	} {
+		got := l.Interpret(tc.input)
+		if got != tc.want {
+			t.Errorf("Interpret(%s) = %s, want %s", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestPhaseBetSummary(t *testing.T) {
+	d := db.Fake()
+	s := &FakeSession{}
+	c := core.New(d, s)
+	l := phaseLifecycle{
+		eventId:     "test",
+		displayName: "A Shiny Test",
+		probability: 0.5,
+		core:        c,
+		state:       OPEN,
+		current:     0,
+	}
+	// Resolved wagers
+	l.Wager("user1", 100, time.Now(), PhaseBet{Direction: GREATER, Phase: 2}) // risk ~0.75
+	l.Wager("user2", 100, time.Now(), PhaseBet{Direction: GREATER, Phase: 3}) // risk ~0.875
+	l.Wager("user3", 100, time.Now(), PhaseBet{Direction: EQUAL, Phase: 1})   // loss
+	l.Wager("user4", 100, time.Now(), PhaseBet{Direction: LESS, Phase: 2})    // loss
+	// Unresolved wagers
+	l.Wager("user1", 100, time.Now(), PhaseBet{Direction: LESS, Phase: 5})    // risk ~0.0625
+	l.Wager("user5", 100, time.Now(), PhaseBet{Direction: GREATER, Phase: 6}) // risk ~0.984375
+	l.Update(4)
+
+	summary, err := l.BetsSummary("risk")
+	if err != nil {
+		t.Errorf("unexpected error in BetsSummary(): %v", err)
+	}
+	want := "There are 600 cakes in bets on the A Shiny Test event."
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted total cakes like %s", summary, want)
+	}
+	want = "200 cakes are guaranteed"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted guaranteed payout like %s", summary, want)
+	}
+	want = "200 cakes are in unresolved bets"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted guaranteed payout like %s", summary, want)
+	}
+	want = "162.50 is the risk adjusted pool"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted guarantted winners like %s", summary, want)
+	}
+	want = " * <@user5> placed 100 cakes on phase > 6 (98.44% risk)"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted bet line like %s", summary, want)
+	}
+	want = " * <@user1> placed 100 cakes on phase < 5 (6.25% risk)"
+	if !strings.Contains(summary, want) {
+		t.Errorf("BetsSummary() = %s, wanted bet line like %s", summary, want)
 	}
 }

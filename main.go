@@ -77,7 +77,7 @@ func main() {
 		return
 	}
 	defer l.Close()
-	shinyEvent := events.NewShinyEvent(core, dg, environment.DiscordChannel)
+	shinyEvent := events.NewShinyEvent(core, environment.DiscordChannel)
 	if err := core.RegisterEvent("shiny", shinyEvent); err != nil {
 		slog.Error(fmt.Sprintf("err registering event: %s", err))
 		return

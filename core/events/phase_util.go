@@ -132,6 +132,8 @@ func (err StateMachineError) Error() string {
 type phaseLifecycle struct {
 	// The eventId used to read from and write to the database.
 	eventId string
+	// A name to display to users
+	displayName string
 	// The probability of the betting event occurring at each encounter.
 	probability float64
 	// A reference to the Core to use for user and database commands.
@@ -258,7 +260,7 @@ func (p *phaseLifecycle) Resolve() error {
 func loadPhaseBets(d db.Database, eid string) ([]*internalPhaseBet, error) {
 	rows, err := d.LoadBets(eid)
 	if err != nil {
-		return nil, fmt.Errorf("could not load shiny bets: %v", err)
+		return nil, fmt.Errorf("could not load %s bets: %v", eid, err)
 	}
 	bs := make([]*internalPhaseBet, 0)
 	for rows.Next() {
@@ -482,4 +484,76 @@ func (p *phaseLifecycle) risk(bet PhaseBet) (float64, error) {
 	}
 	// tranfrom from <= to <
 	return prob * (1 / (1 - p.probability)), nil
+}
+
+func (p *phaseLifecycle) Interpret(blob string) string {
+	b := phaseBetFrom(blob)
+	return interpretPhaseBet(b)
+}
+
+func (p *phaseLifecycle) BetsSummary(style string) (string, error) {
+	bets, err := loadPhaseBets(p.core.Database, p.eventId)
+	if err != nil {
+		return "", err
+	}
+	// First collect cumulative stats on the bets.  Unresolved bets and the
+	// amount in them, guaranteed losses, guarantted winners (risk adjusted),
+	// and total balance on the event.
+	var inUnresolved int
+	unresolvedBets := make([]*internalPhaseBet, 0, len(bets))
+	var inLosers int
+	var inWinners float64
+	var total int
+	for _, b := range bets {
+		total += b.amount
+		if b.bet.Phase >= p.current {
+			unresolvedBets = append(unresolvedBets, b)
+			inUnresolved += b.amount
+			continue
+		}
+		if b.bet.Direction == GREATER {
+			inWinners += float64(b.amount) * b.risk
+		} else {
+			inLosers += b.amount
+		}
+	}
+	message := fmt.Sprintf("There are %d cakes in bets on the %s event.\n", total, p.displayName)
+	message += fmt.Sprintf(" * %d cakes are guaranteed to be in the payout\n", inLosers)
+	message += fmt.Sprintf(" * %d cakes are in unresolved bets\n", inUnresolved)
+	message += fmt.Sprintf(" * %.2f is the risk adjusted pool of guaranteed winners\n", inWinners)
+
+	// Next, sort the unresolved bets, so we can display the most important.
+	switch style {
+	case "risk":
+		slices.SortFunc(unresolvedBets, sortByAdjustedRisk)
+		message += "\nThe unresolved bets with the highest risk adjusted factor are:"
+	case "soon":
+		slices.SortFunc(unresolvedBets, sortByUpcoming)
+		message += "\nThe unresolved bets that will resolve next are:"
+	}
+	for i, b := range unresolvedBets {
+		// Discord has a limit of 2000 characters per message.  This limit gives
+		// us some leeway for the last append being oversized, and still enough
+		// room to write a closing message.
+		if len(message) > 1880 {
+			message += fmt.Sprintf("\nAnd %d other bets.", len(unresolvedBets)-i)
+			return message, nil
+		}
+		message += fmt.Sprintf("\n * <@%s> placed %d cakes on %s (%.2f%% risk)", b.uid, b.amount, interpretPhaseBet(b.bet), b.risk*100)
+	}
+	return message, nil
+}
+
+func sortByAdjustedRisk(a, b *internalPhaseBet) int {
+	diff := float64(b.amount)*b.risk - float64(a.amount)*a.risk
+	if diff > 0 {
+		return 1
+	} else if diff < 0 {
+		return -1
+	}
+	return 0
+}
+
+func sortByUpcoming(a, b *internalPhaseBet) int {
+	return a.bet.Phase - b.bet.Phase
 }

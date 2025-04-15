@@ -43,6 +43,6 @@ type Event interface {
 
 	// BetSummary returns a summary of all the bets placed on the event since it
 	// last opened.  The format of the return is suitable to attach to a Discord
-	// message's content.
+	// message's content. `style` is one of "risk" or "soon".
 	BetsSummary(style string) (string, error)
 }

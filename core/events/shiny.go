@@ -5,6 +5,7 @@ import (
 	"bet/state"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 )
 
@@ -46,7 +47,7 @@ func loadEvent(event *ShinyEvent) {
 		var eid string
 		var lastOpen string
 		var lastClose string
-		var details []byte
+		var details string
 		err := rows.Scan(&eid, &lastOpen, &lastClose, &details)
 		if err != nil {
 			slog.Error(fmt.Sprintf("error reading data for event row %s", err))
@@ -62,10 +63,16 @@ func loadEvent(event *ShinyEvent) {
 			slog.Error(fmt.Sprintf("unable to parse last close time %s", err))
 			return
 		}
-		// TODO: Update should write current phase length, and we should read it
-		// back here.
+		phase := 0
+		if details != "" {
+			phase, err = strconv.Atoi(details)
+			if err != nil {
+				slog.Warn("could not get current phase back from details %s: %v", details, err)
+			}
+		}
 		if !closeTs.After(openTs) {
 			event.phaseLifecycle.state = OPEN
+			event.phaseLifecycle.current = phase
 		}
 	}
 	if !gotRow {
@@ -123,4 +130,19 @@ func (e *ShinyEvent) Notify(s *state.State) {
 	} else {
 		e.lastEncounterWasShiny = false
 	}
+	e.writeDetails()
+}
+
+func (e *ShinyEvent) writeDetails() error {
+	t, err := e.core.Database.OpenTransaction()
+	if err != nil {
+		return err
+	}
+	if err := t.WriteEventDetails(shinyEventName, strconv.Itoa(e.phaseLifecycle.current)); err != nil {
+		return err
+	}
+	if err := t.Commit(); err != nil {
+		return err
+	}
+	return nil
 }

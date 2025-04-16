@@ -194,6 +194,16 @@ func (f *FakeTx) WriteClosed(eid string, closed time.Time) error {
 	return nil
 }
 
+func (f *FakeTx) WriteEventDetails(eid string, details string) error {
+	e, ok := f.d.events[eid]
+	if !ok {
+		e = testEvent{}
+	}
+	e.details = details
+	f.d.events[eid] = e
+	return nil
+}
+
 func (f *FakeTx) RefreshBalance() error {
 	return nil
 }

@@ -22,6 +22,7 @@ func NewShinyEvent(c *core.Core, channel string) *ShinyEvent {
 	e := &ShinyEvent{
 		phaseLifecycle: &phaseLifecycle{
 			eventId:     shinyEventName,
+			displayName: "Shiny",
 			probability: 8191.0 / 8192.0,
 			core:        c,
 			channel:     channel,

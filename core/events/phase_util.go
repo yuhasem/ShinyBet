@@ -227,7 +227,7 @@ func (p *phaseLifecycle) Resolve() error {
 		return err
 	}
 
-	message := fmt.Sprintf("Shiny event closed! Phase was %d", p.current)
+	message := fmt.Sprintf("%s event closed! Phase was %d", p.displayName, p.current)
 
 	payout, winnerTotal, userContribution := calculatePayout(bets, p.current)
 	refundAll := false
@@ -237,9 +237,11 @@ func (p *phaseLifecycle) Resolve() error {
 		refundAll = true
 	}
 	userDelta := resolveBets(p.core, tx, bets, p.current, refundAll)
+	slog.Debug(fmt.Sprintf("userDelta after resolveBets: %+v", userDelta))
 	if winnerTotal != 0.0 {
 		userDelta = distributePayout(p.core, tx, payout, winnerTotal, userContribution, userDelta)
 	}
+	slog.Debug(fmt.Sprintf("userDelta after distributePayout: %+v", userDelta))
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -396,7 +398,11 @@ func sendMessage(c *core.Core, channel string, message string, userDelta map[str
 		message += "\nNet cake gains/losses:"
 	}
 	for i, d := range deltas {
-		user, _ := c.GetUser(d.uid)
+		user, err := c.GetUser(d.uid)
+		if err != nil {
+			slog.Warn(fmt.Sprintf("error getting user while making message: %s", err))
+			continue
+		}
 		balance, _, err := user.Balance()
 		if err != nil {
 			slog.Warn(fmt.Sprintf("error getting users balance: %s", err))
@@ -410,6 +416,7 @@ func sendMessage(c *core.Core, channel string, message string, userDelta map[str
 			message += fmt.Sprintf("and %d other participants", len(deltas)-i)
 			break
 		}
+		message += nextDelta
 	}
 	if err := c.SendMessage(channel, message); err != nil {
 		// don't make this error block anything
@@ -524,7 +531,7 @@ func (p *phaseLifecycle) BetsSummary(style string) (string, error) {
 			inLosers += b.amount
 		}
 	}
-	message := fmt.Sprintf("There are %d cakes in bets on the %s event.\n", total, p.displayName)
+	message := fmt.Sprintf("There are %d cakes in bets on the %s event. (Current phase: %d)\n", total, p.displayName, p.current)
 	message += fmt.Sprintf(" * %d cakes are guaranteed to be in the payout\n", inLosers)
 	message += fmt.Sprintf(" * %d cakes are in unresolved bets\n", inUnresolved)
 	message += fmt.Sprintf(" * %.2f is the risk adjusted pool of guaranteed winners\n", inWinners)

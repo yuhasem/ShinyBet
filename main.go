@@ -83,6 +83,12 @@ func main() {
 		return
 	}
 	l.Register(shinyEvent)
+	antiEvent := events.NewAntiShinyEvent(core, environment.DiscordChannel)
+	if err := core.RegisterEvent("anti", antiEvent); err != nil {
+		slog.Error(fmt.Sprintf("err registering event: %s", err))
+		return
+	}
+	l.Register(antiEvent)
 
 	// Command initialization and registration.
 	cs := map[string]Command{

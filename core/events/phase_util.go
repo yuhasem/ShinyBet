@@ -465,25 +465,24 @@ func (p PhaseLengthError) Error() string {
 }
 
 func (p *phaseLifecycle) risk(bet PhaseBet) (float64, error) {
-	if bet.Phase < p.current {
+	if bet.Phase <= p.current {
 		return 0.0, PhaseLengthError{}
 	}
-	// prob is the probability of a phase lasting longer than the guess. That's
-	// the risk for < bets.
-	prob := math.Pow(p.probability, float64(bet.Phase-p.current))
-	// For > bets, we need to reverse the odds to get risk
+	length := float64(bet.Phase - p.current)
+	inverseProb := 1.0 - p.probability
+	if bet.Direction == LESS {
+		// risk(<x) = P(>=x) = P(>x-1) = (1-p)^(x-1)
+		return math.Pow(inverseProb, length-1.0), nil
+	}
 	if bet.Direction == GREATER {
-		return 1 - prob, nil
+		// risk(>x) = 1 - P(>x) = 1 - (1-p)^x
+		return 1 - math.Pow(inverseProb, length), nil
 	}
 	if bet.Direction == EQUAL {
-		// prob = P(phase > x) = (1-p)^x
-		// P(phase = x) = (1-p)^(x-1) * p
-		// So transform by: prob * (p / (1-p))
-		// and risk is 1 - P(phase = x)
-		return 1.0 - (prob * (p.probability / (1 - p.probability))), nil
+		// risk(=x) = 1 - P(=x) = 1 - p*(1-p)^(x-1)
+		return 1.0 - p.probability*math.Pow(inverseProb, length-1.0), nil
 	}
-	// tranfrom from <= to <
-	return prob * (1 / (1 - p.probability)), nil
+	return 0.0, fmt.Errorf("unknown direction %d", bet.Direction)
 }
 
 func (p *phaseLifecycle) Interpret(blob string) string {

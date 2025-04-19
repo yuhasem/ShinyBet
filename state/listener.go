@@ -70,7 +70,8 @@ func (l *Listener) ServeHTTP(out http.ResponseWriter, in *http.Request) {
 
 	go func() {
 		for _, o := range l.observers {
-			go o.Notify(l.state)
+			// Intentionally serial to prevent database lock contention.
+			o.Notify(l.state)
 		}
 	}()
 

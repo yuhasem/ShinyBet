@@ -23,7 +23,7 @@ func NewShinyEvent(c *core.Core, channel string) *ShinyEvent {
 		phaseLifecycle: &phaseLifecycle{
 			eventId:     shinyEventName,
 			displayName: "Shiny",
-			probability: 8191.0 / 8192.0,
+			probability: 1.0 / 8192.0,
 			core:        c,
 			channel:     channel,
 		},
@@ -102,6 +102,7 @@ func loadEvent(event *ShinyEvent) {
 // when new state has been received and is our opportunity to update phase
 // encounters and close the event if needed.
 func (e *ShinyEvent) Notify(s *state.State) {
+	slog.Debug("start shiny notify")
 	if !e.lastEncounterWasShiny && s.Stats.CurrentPhase.Encounters < e.current {
 		// TODO: this is the panic condition.  The phase has been reset and we
 		// didn't see the encounter that caused it.  The goals are:
@@ -131,19 +132,22 @@ func (e *ShinyEvent) Notify(s *state.State) {
 	} else {
 		e.lastEncounterWasShiny = false
 	}
-	e.writeDetails()
+	if err := e.writeDetails(); err != nil {
+		slog.Error(fmt.Sprintf("error writing details to shiny event: %v", err))
+	}
+	slog.Debug("end shiny notify")
 }
 
 func (e *ShinyEvent) writeDetails() error {
 	t, err := e.core.Database.OpenTransaction()
 	if err != nil {
-		return err
+		return fmt.Errorf("in open tx: %v", err)
 	}
 	if err := t.WriteEventDetails(shinyEventName, strconv.Itoa(e.phaseLifecycle.current)); err != nil {
-		return err
+		return fmt.Errorf("in write: %v", err)
 	}
 	if err := t.Commit(); err != nil {
-		return err
+		return fmt.Errorf("in commit: %v", err)
 	}
 	return nil
 }

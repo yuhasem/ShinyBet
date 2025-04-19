@@ -40,6 +40,10 @@ func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
 						Name:  "shiny",
 						Value: "shiny",
 					},
+					{
+						Name:  "anti",
+						Value: "anti",
+					},
 				},
 			},
 		},

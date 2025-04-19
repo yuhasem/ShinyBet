@@ -25,7 +25,7 @@ func NewAntiShinyEvent(c *core.Core, channel string) *AntiShinyEvent {
 		phaseLifecycle: &phaseLifecycle{
 			eventId:     antiEventName,
 			displayName: "Anti Shiny",
-			probability: 8191.0 / 8192.0,
+			probability: 1.0 / 8192.0,
 			core:        c,
 			channel:     channel,
 		},
@@ -40,35 +40,39 @@ func loadAntiEvent(event *AntiShinyEvent) {
 	if err != nil {
 		slog.Error(fmt.Sprintf("could not load anti event from db: %v", err))
 	}
+	gotRow := false
 	for row.Next() {
+		gotRow = true
 		var eid string
 		var lastOpen string
 		var lastClose string
 		var details string
 		if err := row.Scan(&eid, &lastOpen, &lastClose, &details); err != nil {
 			slog.Error(fmt.Sprintf("could not scan anti event row: %v", err))
-			return
+			continue
 		}
 		openTs, err := time.Parse(time.DateTime, lastOpen)
 		if err != nil {
 			slog.Error(fmt.Sprintf("could not parse open time: %v", err))
-			return
+			continue
 		}
 		closeTs, err := time.Parse(time.DateTime, lastClose)
 		if err != nil {
 			slog.Error(fmt.Sprintf("could not parse close time: %v", err))
-			return
+			continue
 		}
 		phase, encounters, err := parseDetails(details)
 		if err != nil {
 			slog.Error(fmt.Sprintf("could not parse details: %v", err))
-			return
+			continue
 		}
 		if !closeTs.After(openTs) {
 			event.phaseLifecycle.state = OPEN
 			event.phaseLifecycle.current = phase
 			event.lastAntiEncounters = encounters
 		}
+	}
+	if gotRow {
 		return
 	}
 	// Write a new base row.
@@ -114,32 +118,37 @@ func parseDetails(details string) (phase, encounters int, err error) {
 }
 
 func (e *AntiShinyEvent) Notify(s *state.State) {
+	slog.Debug("start anti notify")
 	e.Update(s.Stats.Totals.TotalEncounters - e.lastAntiEncounters)
 	if s.Encounter.IsAntiShiny {
-		slog.Debug("received state: %+v", s)
+		slog.Debug(fmt.Sprintf("received state: %+v", s))
+		e.lastAntiEncounters = s.Stats.Totals.TotalEncounters
 		if err := e.Close(time.Now()); err != nil {
-			slog.Warn(fmt.Sprintf("error closing anti event: %v", err))
+			slog.Error(fmt.Sprintf("error closing anti event: %v", err))
 		}
 		if err := e.Resolve(); err != nil {
-			slog.Warn(fmt.Sprintf("error resolving anti event: %v", err))
+			slog.Error(fmt.Sprintf("error resolving anti event: %v", err))
 		}
 		if err := e.Open(time.Now()); err != nil {
-			slog.Warn(fmt.Sprintf("error opening anti event: %v", err))
+			slog.Error(fmt.Sprintf("error opening anti event: %v", err))
 		}
 	}
-	e.writeDetails()
+	if err := e.writeDetails(); err != nil {
+		slog.Error(fmt.Sprintf("error writing details to anti event: %v", err))
+	}
+	slog.Debug("end anti notify")
 }
 
 func (e *AntiShinyEvent) writeDetails() error {
 	tx, err := e.core.Database.OpenTransaction()
 	if err != nil {
-		return err
+		return fmt.Errorf("in open tx: %v", err)
 	}
 	if err := tx.WriteEventDetails(antiEventName, fmt.Sprintf("%d,%d", e.phaseLifecycle.current, e.lastAntiEncounters)); err != nil {
-		return err
+		return fmt.Errorf("in write: %v", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return err
+		return fmt.Errorf("in commit: %v", err)
 	}
 	return nil
 }

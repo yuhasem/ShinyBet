@@ -3,6 +3,7 @@ package events
 import (
 	"bet/core"
 	"bet/core/db"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -349,5 +350,52 @@ func TestPhaseBetSummary(t *testing.T) {
 	want = " * <@user1> placed 100 cakes on phase < 5 (6.25% risk)"
 	if !strings.Contains(summary, want) {
 		t.Errorf("BetsSummary() = %s, wanted bet line like %s", summary, want)
+	}
+}
+
+// risk isn't part of the public interface, but it is VERY important this is
+// correct, so it get it's own unit tests
+func TestPhaseRisk(t *testing.T) {
+	l := phaseLifecycle{
+		current:     0,
+		probability: 0.1,
+	}
+	for _, tc := range []struct {
+		bet      PhaseBet
+		wantRisk float64
+		wantErr  error
+	}{
+		{
+			bet:      PhaseBet{Direction: LESS, Phase: 10},
+			wantRisk: 0.387420489,
+		},
+		{
+			bet:      PhaseBet{Direction: LESS, Phase: 5},
+			wantRisk: 0.6561,
+		},
+		{
+			bet:      PhaseBet{Direction: EQUAL, Phase: 2},
+			wantRisk: 0.91,
+		},
+		{
+			bet:      PhaseBet{Direction: EQUAL, Phase: 5},
+			wantRisk: 0.93439,
+		},
+		{
+			bet:      PhaseBet{Direction: GREATER, Phase: 2},
+			wantRisk: 0.19,
+		},
+		{
+			bet:      PhaseBet{Direction: GREATER, Phase: 5},
+			wantRisk: 0.40951,
+		},
+	} {
+		got, err := l.risk(tc.bet)
+		if err != tc.wantErr {
+			t.Errorf("error in risk(%v): %v, want %v", tc.bet, err, tc.wantErr)
+		}
+		if math.Abs(got-tc.wantRisk) > 0.00001 {
+			t.Errorf("risk(%v) = %f, want %f", tc.bet, got, tc.wantRisk)
+		}
 	}
 }

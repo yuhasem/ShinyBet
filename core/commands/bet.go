@@ -98,6 +98,69 @@ func (c *BetCommand) Command() *discordgo.ApplicationCommand {
 						Required:    true,
 					},
 				},
+			}, {
+				Name:        "anti",
+				Description: "Place a bet on the phase length of this anti shiny",
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Name:        "amount",
+						Description: "How many cakes to wager",
+						Type:        discordgo.ApplicationCommandOptionInteger,
+						Required:    true,
+						MinValue:    &integerOptionMinValue,
+					},
+					{
+						Name:        "over-under",
+						Description: "Whether to bet over or under the phase lenth",
+						Type:        discordgo.ApplicationCommandOptionString,
+						Required:    true,
+						Choices: []*discordgo.ApplicationCommandOptionChoice{
+							{
+								Name:  "over",
+								Value: ">",
+							},
+							{
+								Name:  ">",
+								Value: ">",
+							},
+							{
+								Name:  "greater than",
+								Value: ">",
+							},
+							{
+								Name:  "under",
+								Value: "<",
+							},
+							{
+								Name:  "<",
+								Value: "<",
+							},
+							{
+								Name:  "less than",
+								Value: "<",
+							},
+							{
+								Name:  "equal",
+								Value: "=",
+							},
+							{
+								Name:  "exact",
+								Value: "=",
+							},
+							{
+								Name:  "=",
+								Value: "=",
+							},
+						},
+					},
+					{
+						Name:        "phase",
+						Description: "Phase length",
+						Type:        discordgo.ApplicationCommandOptionInteger,
+						Required:    true,
+					},
+				},
 			},
 		},
 	}
@@ -121,8 +184,9 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 	}
 	uid := i.Interaction.Member.User.ID
 
-	switch options[0].Name {
-	case "shiny":
+	eventName := options[0].Name
+	switch eventName {
+	case "shiny", "anti":
 		options = options[0].Options
 		amount := int(options[0].IntValue())
 		overUnder := options[1].StringValue()
@@ -203,7 +267,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("<@%s> put %d cakes on the phase being %s %d encounters (%.2f%% risk).", uid, p.Amount, str, phase, p.Risk*100),
+				Content: fmt.Sprintf("<@%s> put %d cakes on the %s phase being %s %d encounters (%.2f%% risk).", uid, p.Amount, eventName, str, phase, p.Risk*100),
 				AllowedMentions: &discordgo.MessageAllowedMentions{
 					// Let's the user be tagged by ID so their name appears
 					// without pinging them.

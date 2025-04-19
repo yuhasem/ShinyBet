@@ -395,13 +395,21 @@ func sendMessage(c *core.Core, channel string, message string, userDelta map[str
 	if len(deltas) > 0 {
 		message += "\nNet cake gains/losses:"
 	}
-	for _, d := range deltas {
+	for i, d := range deltas {
 		user, _ := c.GetUser(d.uid)
 		balance, _, err := user.Balance()
 		if err != nil {
 			slog.Warn(fmt.Sprintf("error getting users balance: %s", err))
 		}
-		message += fmt.Sprintf("\n * <@%s>: %+d (new balance %d cakes)", d.uid, d.amount, balance)
+		nextDelta := fmt.Sprintf("\n * <@%s>: %+d (new balance %d cakes)", d.uid, d.amount, balance)
+		if len(message)+len(nextDelta) >= 1975 {
+			// The message will be too long for Discord, so cut it off here and
+			// add a little suffix.
+			// TODO: Could we print multiple messages instead?  This is the one
+			// place I wouldn't want to compromise.
+			message += fmt.Sprintf("and %d other participants", len(deltas)-i)
+			break
+		}
 	}
 	if err := c.SendMessage(channel, message); err != nil {
 		// don't make this error block anything

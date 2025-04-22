@@ -8,15 +8,31 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+var timeBetweenEncounters = promauto.NewHistogram(prometheus.HistogramOpts{
+	Name:    "core_state_encounter_time",
+	Help:    "Time (milliseconds) between encounters as measured by receiving post requests",
+	Buckets: prometheus.ExponentialBuckets(9000.0, 1.4142, 12),
+})
+var maxTimeBetweenEncounters = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "core_state_encounter_time_max",
+	Help: "Max time (milliseconds) between encounters as measured by receiving post requests",
+})
 
 // Listener creates an HTTP server and listens for POST messages to update the
 // current state, and notifies registered events of state changes.
 type Listener struct {
-	state     *State
-	server    http.Server
-	observers []Observer
-	acl       []string
+	state           *State
+	server          http.Server
+	observers       []Observer
+	acl             []string
+	lastReceiveTime time.Time
+	maxReceiveTime  float64
 }
 
 // Observer is the interface Listener expects from events that register for
@@ -38,10 +54,11 @@ func NewListener(address string, acl []string) (*Listener, error) {
 
 	state := &State{}
 	listener := &Listener{
-		state:     state,
-		server:    server,
-		observers: make([]Observer, 0),
-		acl:       acl,
+		state:           state,
+		server:          server,
+		observers:       make([]Observer, 0),
+		acl:             acl,
+		lastReceiveTime: time.Now(),
 	}
 	http.Handle("/", listener)
 
@@ -59,6 +76,15 @@ func (l *Listener) ServeHTTP(out http.ResponseWriter, in *http.Request) {
 		out.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+	rt := time.Now()
+	between := float64(rt.UnixMilli() - l.lastReceiveTime.UnixMilli())
+	timeBetweenEncounters.Observe(between)
+	if between > l.maxReceiveTime {
+		maxTimeBetweenEncounters.Set(between)
+		l.maxReceiveTime = between
+	}
+	l.lastReceiveTime = rt
+
 	if err := json.NewDecoder(in.Body).Decode(l.state); err != nil {
 		slog.Info(fmt.Sprintf("decode error: %v", err))
 	}

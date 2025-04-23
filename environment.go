@@ -30,6 +30,16 @@ type Enviroment struct {
 	DiscordServer string
 	// DiscordChannel is the channel to accept command from (UNIMPLEMENTED).
 	DiscordChannel string
+	// Events contains all the configuration for events.
+	Events EventConfig
+}
+
+// EventConfig contains all the ways to configure which events are run.
+type EventConfig struct {
+	// Enables the shiny event
+	EnableShiny bool
+	// Enables the anti shiny event
+	EnableAnti bool
 }
 
 func LoadEnvironemnt() (*Enviroment, error) {

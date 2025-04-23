@@ -77,11 +77,13 @@ func main() {
 		return
 	}
 	defer l.Close()
-	if err := StartEvents(core, l, environment.DiscordChannel); err != nil {
+	if err := StartEvents(core, l, environment.DiscordChannel, environment.Events); err != nil {
 		return
 	}
 
 	// Command initialization and registration.
+	// TODO: commands that take an event as argument (bet, ledger, soon) should
+	// listen to configuation that tells which events are enabled.
 	cs := map[string]Command{
 		"balance":     &commands.BalanceCommand{Core: core},
 		"bet":         &commands.BetCommand{Core: core},
@@ -134,18 +136,22 @@ func main() {
 	}
 }
 
-func StartEvents(c *core.Core, l *state.Listener, channel string) error {
-	shinyEvent := events.NewShinyEvent(c, channel)
-	if err := c.RegisterEvent("shiny", shinyEvent); err != nil {
-		slog.Error(fmt.Sprintf("err registering event: %s", err))
-		return err
+func StartEvents(c *core.Core, l *state.Listener, channel string, conf EventConfig) error {
+	if conf.EnableShiny {
+		shinyEvent := events.NewShinyEvent(c, channel)
+		if err := c.RegisterEvent("shiny", shinyEvent); err != nil {
+			slog.Error(fmt.Sprintf("err registering event: %s", err))
+			return err
+		}
+		l.Register(shinyEvent)
 	}
-	l.Register(shinyEvent)
-	antiEvent := events.NewAntiShinyEvent(c, channel)
-	if err := c.RegisterEvent("anti", antiEvent); err != nil {
-		slog.Error(fmt.Sprintf("err registering event: %s", err))
-		return err
+	if conf.EnableAnti {
+		antiEvent := events.NewAntiShinyEvent(c, channel)
+		if err := c.RegisterEvent("anti", antiEvent); err != nil {
+			slog.Error(fmt.Sprintf("err registering event: %s", err))
+			return err
+		}
+		l.Register(antiEvent)
 	}
-	l.Register(antiEvent)
 	return nil
 }

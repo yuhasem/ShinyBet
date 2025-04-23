@@ -77,18 +77,9 @@ func main() {
 		return
 	}
 	defer l.Close()
-	shinyEvent := events.NewShinyEvent(core, environment.DiscordChannel)
-	if err := core.RegisterEvent("shiny", shinyEvent); err != nil {
-		slog.Error(fmt.Sprintf("err registering event: %s", err))
+	if err := StartEvents(core, l, environment.DiscordChannel); err != nil {
 		return
 	}
-	l.Register(shinyEvent)
-	antiEvent := events.NewAntiShinyEvent(core, environment.DiscordChannel)
-	if err := core.RegisterEvent("anti", antiEvent); err != nil {
-		slog.Error(fmt.Sprintf("err registering event: %s", err))
-		return
-	}
-	l.Register(antiEvent)
 
 	// Command initialization and registration.
 	cs := map[string]Command{
@@ -141,4 +132,20 @@ func main() {
 			slog.Error(fmt.Sprintf("error removing command: %s", err))
 		}
 	}
+}
+
+func StartEvents(c *core.Core, l *state.Listener, channel string) error {
+	shinyEvent := events.NewShinyEvent(c, channel)
+	if err := c.RegisterEvent("shiny", shinyEvent); err != nil {
+		slog.Error(fmt.Sprintf("err registering event: %s", err))
+		return err
+	}
+	l.Register(shinyEvent)
+	antiEvent := events.NewAntiShinyEvent(c, channel)
+	if err := c.RegisterEvent("anti", antiEvent); err != nil {
+		slog.Error(fmt.Sprintf("err registering event: %s", err))
+		return err
+	}
+	l.Register(antiEvent)
+	return nil
 }

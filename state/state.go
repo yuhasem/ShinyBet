@@ -5,6 +5,12 @@ type State struct {
 	Encounter struct {
 		IsShiny     bool `json:"is_shiny"`
 		IsAntiShiny bool `json:"is_anti_shiny"`
+		Species     struct {
+			Name string `json:"name"`
+		} `json:"species"`
+		HeldItem struct {
+			Name string `json:"name"`
+		} `json:"held_item"`
 	} `json:"encounter"`
 	Stats struct {
 		CurrentPhase struct {

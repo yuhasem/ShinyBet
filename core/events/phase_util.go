@@ -172,12 +172,13 @@ func (p *phaseLifecycle) Open(open time.Time) error {
 	return nil
 }
 
-func (p *phaseLifecycle) Update(phase int) {
+func (p *phaseLifecycle) Update(value any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.state != OPEN {
 		return
 	}
+	phase := value.(int)
 	p.current = phase
 	currentPhase.WithLabelValues(p.eventId).Set(float64(phase))
 }

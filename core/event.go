@@ -16,14 +16,18 @@ type Event interface {
 	// Updates the value of the thing that is being bet on.  This should be
 	// called at least once before Close.  This may be used to influence odds or
 	// weights of payouts on bets.
-	Update(value int)
-	// Close closes this Event and distributes the payout.  This must at least
-	// call resolveBet on all users who have placed bets.  Close MUST lock
-	// core's eventMu before making any user operations.  All operations must be
-	// committed to storage before releasing the lock.
+	Update(value any)
+	// Close sets the event to CLOSING, and persists closing time.  This allows
+	// for 1) timing the resolution to avoid spoilers given a significant
+	// difference between a stream and this bot, and 2) manual resolution of an
+	// event in the case a fatal problem occurs during resolve without allowing
+	// for users to place more bets that would be counted under this event.
 	Close(time.Time) error
-	// TODO: consider a Cancel method as well for the case that a bet cannot be
-	// reolved.
+	// Resolve distributes the payout.  This must at least call resolveBet on
+	// all users who have placed bets.  Resolve MUST lock core's eventMu before
+	// making any user operations.  All operations must be committed to storage
+	// before releasing the lock.
+	Resolve() error
 
 	/////////////////////
 	// Command Methods //

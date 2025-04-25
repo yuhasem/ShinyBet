@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -223,4 +224,51 @@ func (e *ItemEvent) Wager(uid string, amount int, placed time.Time, bet any) (an
 	}
 	wagerSuccess.WithLabelValues(itemEventName).Inc()
 	return risk, nil
+}
+
+func (e *ItemEvent) Interpret(blob string) string {
+	if blob == "true" {
+		return fmt.Sprintf("%d WILL hold %d", e.species, e.item)
+	}
+	return fmt.Sprintf("%d will NOT hold %d", e.species, e.item)
+}
+
+func (e *ItemEvent) BetsSummary(style string) (string, error) {
+	bets, err := e.loadItemBets()
+	if err != nil {
+		return "", err
+	}
+	// No sorting for soon, becuase that doeesn't really make sense in this
+	// context.
+	switch style {
+	case "risk":
+		slices.SortFunc(bets, func(a, b itemBet) int {
+			return b.amount - a.amount
+		})
+	}
+	// we can build the bottom part of the message at the same time we're
+	// collecting totals because bets don't become resolved like they do for
+	// phase bets
+	betMessage := strings.Builder{}
+	var total int
+	var neg int
+	var pos int
+	for _, b := range bets {
+		total += b.amount
+		var m string
+		if b.guess {
+			pos += b.amount
+			m = "WILL hold"
+		} else {
+			neg += b.amount
+			m = "will NOT hold"
+		}
+		fmt.Fprintf(&betMessage, " * %s placed %d cakes that %s %s %s\n", b.uid, b.amount, e.species, m, e.item)
+	}
+	negFrac := float64(neg) / float64(total)
+	posFrac := float64(pos) / float64(total)
+	message := fmt.Sprintf("There are %d cakes on the Item event\n", total)
+	message += fmt.Sprintf("%d (%.2f%%) AGAINST : FOR %d (%2.f%%)\n", neg, negFrac, pos, posFrac)
+	message = fmt.Sprintf("%s%s", message, betMessage.String())
+	return message, nil
 }

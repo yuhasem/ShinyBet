@@ -186,3 +186,41 @@ func (e *ItemEvent) payoutWinners(tx db.Transaction, payout int, winners int, us
 		}
 	}
 }
+
+func (e *ItemEvent) Wager(uid string, amount int, placed time.Time, bet any) (any, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	wagerReqs.WithLabelValues(itemEventName).Inc()
+	if e.state != OPEN {
+		return 0.0, fmt.Errorf("betting is closed")
+	}
+	guess, ok := bet.(bool)
+	if !ok {
+		return 0.0, fmt.Errorf("bet argument must be of type bool")
+	}
+	// TODO: make these configurable.  Note they aren't used for any calculation,
+	// just for display.
+	risk := 0.95
+	if guess {
+		risk = 0.05
+	}
+	user, err := e.c.GetUser(uid)
+	if err != nil {
+		return 0.0, err
+	}
+	tx, err := e.c.Database.OpenTransaction()
+	if err != nil {
+		return 0.0, err
+	}
+	if err := user.Reserve(tx, amount); err != nil {
+		return 0.0, err
+	}
+	if err := tx.WriteBet(uid, itemEventName, placed, amount, risk, fmt.Sprintf("%t", guess)); err != nil {
+		return 0.0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0.0, err
+	}
+	wagerSuccess.WithLabelValues(itemEventName).Inc()
+	return risk, nil
+}

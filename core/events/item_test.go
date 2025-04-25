@@ -94,3 +94,57 @@ func TestItemNotify(t *testing.T) {
 		t.Errorf("item event in state %d, expected %d", e.state, CLOSED)
 	}
 }
+
+func TestItemWager(t *testing.T) {
+	d := db.Fake()
+	s := &FakeSession{}
+	c := core.New(d, s)
+	e := ItemEvent{
+		c:     c,
+		state: OPEN,
+	}
+	risk, err := e.Wager("user1", 100, time.Now(), true)
+	if err != nil {
+		t.Errorf("Unexpected error in wager: %v", err)
+	}
+	r, ok := risk.(float64)
+	if !ok {
+		t.Errorf("risk returned from wager is not a float64")
+	}
+	if r != 0.05 {
+		t.Errorf("wager returned display risk %f, wanted 0.05", r)
+	}
+	risk, _ = e.Wager("user2", 800, time.Now(), false)
+	r = risk.(float64)
+	if r != 0.95 {
+		t.Errorf("wager returned display risk %f, wanted 0.95", r)
+	}
+	e.Wager("user3", 200, time.Now(), false)
+	e.Update(false)
+	e.Close(time.Now())
+	e.Resolve()
+	u1, _ := c.GetUser("user1")
+	bal, inBets, _ := u1.Balance()
+	if bal != 900 {
+		t.Errorf("user1 has %d in balance, expected 900", bal)
+	}
+	if inBets != 0 {
+		t.Errorf("user1 has %d in bets, expected 0", inBets)
+	}
+	u2, _ := c.GetUser("user2")
+	bal, inBets, _ = u2.Balance()
+	if bal != 1080 {
+		t.Errorf("user2 has %d in balance, expected 1080", bal)
+	}
+	if inBets != 0 {
+		t.Errorf("user2 has %d in bets, expected 0", inBets)
+	}
+	u3, _ := c.GetUser("user3")
+	bal, inBets, _ = u3.Balance()
+	if bal != 1020 {
+		t.Errorf("user3 has %d in balance, expected 1020", bal)
+	}
+	if inBets != 0 {
+		t.Errorf("user3 has %d in bets, expected 0", inBets)
+	}
+}

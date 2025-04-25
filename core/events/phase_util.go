@@ -46,13 +46,6 @@ var (
 		})
 )
 
-// State enum
-const (
-	CLOSED = iota
-	OPEN
-	CLOSING
-)
-
 // Direction enum
 const (
 	LESS = iota
@@ -118,15 +111,6 @@ type internalPhaseBet struct {
 	uid    string
 }
 
-type StateMachineError struct {
-	expected int
-	actual   int
-}
-
-func (err StateMachineError) Error() string {
-	return fmt.Sprintf("wrong state for transition, expected %d, was %d", err.expected, err.actual)
-}
-
 // phaseLifecycle implements lifecycle management methods (Open, Update, and
 // Close) and the command method Wager, to be used in composing phase events.
 type phaseLifecycle struct {
@@ -142,9 +126,8 @@ type phaseLifecycle struct {
 	channel string
 
 	// The following don't need to be initialized.
-	mu sync.Mutex
-	// see State enum
-	state   int
+	mu      sync.Mutex
+	state   EventState
 	current int
 }
 
@@ -153,21 +136,11 @@ type phaseLifecycle struct {
 func (p *phaseLifecycle) Open(open time.Time) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.state != CLOSED {
-		return StateMachineError{expected: CLOSED, actual: p.state}
-	}
-
-	tx, err := p.core.Database.OpenTransaction()
+	var err error
+	p.state, err = commonOpen(p.core.Database, p.eventId, open, p.state)
 	if err != nil {
 		return err
 	}
-	if err := tx.WriteOpened(p.eventId, open); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	p.state = OPEN
 	p.current = 0
 	return nil
 }
@@ -186,22 +159,9 @@ func (p *phaseLifecycle) Update(value any) {
 func (p *phaseLifecycle) Close(close time.Time) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.state != OPEN {
-		return StateMachineError{expected: OPEN, actual: p.state}
-	}
-
-	tx, err := p.core.Database.OpenTransaction()
-	if err != nil {
-		return err
-	}
-	if err := tx.WriteClosed(p.eventId, close); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	p.state = CLOSING
-	return nil
+	var err error
+	p.state, err = commonClose(p.core.Database, p.eventId, close, p.state)
+	return err
 }
 
 // Resolve resolves all wagers between last open and last close and sets the

@@ -47,11 +47,11 @@ func (f *FakeSession) ChannelMessageSendComplex(string, *discordgo.MessageSend, 
 func TestPhaseOpen(t *testing.T) {
 	for _, tc := range []struct {
 		open        time.Time
-		state       int
+		state       EventState
 		current     int
 		wantError   error
 		wantWrite   string
-		wantState   int
+		wantState   EventState
 		wantCurrent int
 	}{
 		{
@@ -108,10 +108,10 @@ func TestPhaseOpen(t *testing.T) {
 func TestPhaseClose(t *testing.T) {
 	for _, tc := range []struct {
 		close     time.Time
-		state     int
+		state     EventState
 		wantError error
 		wantWrite string
-		wantState int
+		wantState EventState
 	}{
 		{
 			close:     time.Date(2020, time.January, 1, 0, 0, 0, 0, time.UTC),

@@ -22,7 +22,7 @@ type ItemEvent struct {
 	item    string
 	// State keeping for lifecycle
 	mu         sync.Mutex
-	state      int
+	state      EventState
 	resolution bool
 	c          *core.Core
 }
@@ -51,20 +51,11 @@ func equalIgnoreCase(a, b string) bool {
 func (e *ItemEvent) Open(t time.Time) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.state != CLOSED {
-		return StateMachineError{expected: CLOSED, actual: e.state}
-	}
-	tx, err := e.c.Database.OpenTransaction()
+	var err error
+	e.state, err = commonOpen(e.c.Database, itemEventName, t, e.state)
 	if err != nil {
 		return err
 	}
-	if err := tx.WriteOpened(itemEventName, t); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	e.state = OPEN
 	return nil
 }
 
@@ -79,20 +70,9 @@ func (e *ItemEvent) Update(value any) {
 func (e *ItemEvent) Close(t time.Time) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.state != OPEN {
-		return StateMachineError{expected: OPEN, actual: e.state}
-	}
-	tx, err := e.c.Database.OpenTransaction()
-	if err != nil {
-		return err
-	}
-	if err := tx.WriteClosed(itemEventName, t); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	e.state = CLOSING
+	var err error
+	e.state, err = commonClose(e.c.Database, itemEventName, t, e.state)
+	return err
 	return nil
 }
 

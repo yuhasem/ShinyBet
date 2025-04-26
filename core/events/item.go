@@ -346,6 +346,9 @@ func (e *ItemEvent) Interpret(blob string) string {
 }
 
 func (e *ItemEvent) BetsSummary(style string) (string, error) {
+	if e.state != OPEN {
+		return "The Held Item event is closed.", nil
+	}
 	bets, err := e.loadItemBets()
 	if err != nil {
 		return "", err

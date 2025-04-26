@@ -40,6 +40,14 @@ type EventConfig struct {
 	EnableShiny bool
 	// Enables the anti shiny event
 	EnableAnti bool
+	// Configures the held item event
+	ItemEvent ItemEventConfig
+}
+
+type ItemEventConfig struct {
+	Enable  bool
+	Species string
+	Item    string
 }
 
 func LoadEnvironemnt() (*Enviroment, error) {

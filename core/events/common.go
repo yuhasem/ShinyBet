@@ -3,6 +3,7 @@ package events
 import (
 	"bet/core/db"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -62,4 +63,29 @@ func commonClose(d db.Database, eid string, close time.Time, state EventState) (
 		return state, err
 	}
 	return CLOSING, nil
+}
+
+type delta struct {
+	uid    string
+	amount int
+}
+
+func (d delta) String() string {
+	return fmt.Sprintf("<@%s> %+d", d.uid, d.amount)
+}
+
+func deltaMapToList(userDelta map[string]int) []delta {
+	d := make([]delta, 0, len(userDelta))
+	for uid, diff := range userDelta {
+		d = append(d, delta{uid: uid, amount: diff})
+	}
+	return d
+}
+
+func sortedDeltas(userDelta map[string]int) []delta {
+	deltas := deltaMapToList(userDelta)
+	slices.SortFunc(deltas, func(a, b delta) int {
+		return b.amount - a.amount
+	})
+	return deltas
 }

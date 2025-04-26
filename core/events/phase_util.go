@@ -343,18 +343,7 @@ func distributePayout(c *core.Core, tx db.Transaction, payout int, winnerTotal f
 
 func sendMessage(c *core.Core, channel string, message string, userDelta map[string]int) {
 	// Collect user deltas into an array for sorting
-	type delta struct {
-		amount int
-		uid    string
-	}
-	deltas := make([]delta, 0, len(userDelta))
-	for uid, amount := range userDelta {
-		deltas = append(deltas, delta{amount: amount, uid: uid})
-	}
-	// Sorts with highest delta first
-	slices.SortFunc(deltas, func(a, b delta) int {
-		return b.amount - a.amount
-	})
+	deltas := sortedDeltas(userDelta)
 	if len(deltas) > 0 {
 		message += "\nNet cake gains/losses:"
 	}
@@ -368,7 +357,7 @@ func sendMessage(c *core.Core, channel string, message string, userDelta map[str
 		if err != nil {
 			slog.Warn(fmt.Sprintf("error getting users balance: %s", err))
 		}
-		nextDelta := fmt.Sprintf("\n * <@%s>: %+d (new balance %d cakes)", d.uid, d.amount, balance)
+		nextDelta := fmt.Sprintf("\n * %s (new balance %d cakes)", d, balance)
 		if len(message)+len(nextDelta) >= 1975 {
 			// The message will be too long for Discord, so cut it off here and
 			// add a little suffix.

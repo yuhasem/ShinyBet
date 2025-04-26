@@ -153,5 +153,13 @@ func StartEvents(c *core.Core, l *state.Listener, channel string, conf EventConf
 		}
 		l.Register(antiEvent)
 	}
+	if conf.ItemEvent.Enable {
+		itemEvent := events.NewItemEvent(c, conf.ItemEvent.Species, conf.ItemEvent.Item, channel)
+		if err := c.RegisterEvent("item", itemEvent); err != nil {
+			slog.Error(fmt.Sprintf("err registering event: %s", err))
+			return err
+		}
+		l.Register(itemEvent)
+	}
 	return nil
 }

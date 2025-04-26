@@ -26,9 +26,75 @@ type ItemEvent struct {
 	state      EventState
 	resolution bool
 	c          *core.Core
+	channel    string
+}
+
+func NewItemEvent(c *core.Core, species, item string, channel string) *ItemEvent {
+	e := &ItemEvent{
+		c:       c,
+		species: species,
+		item:    item,
+		channel: channel,
+	}
+	e = loadItemEvent(e)
+	return e
+}
+
+// Modifies ItemEvent in place, if there the database has information about this
+// event, writing a new row to the databse if none is present.  Errors will
+// result in the event being returned unchanged
+func loadItemEvent(e *ItemEvent) *ItemEvent {
+	row, err := e.c.Database.LoadEvent(itemEventName)
+	if err != nil {
+		slog.Error("could not load item event from db: %v", err)
+		return e
+	}
+	gotRow := false
+	for row.Next() {
+		gotRow = true
+		var eid string // unused
+		var open string
+		var close string
+		var details string // unused, no state to store.
+		if err := row.Scan(&eid, &open, &close, &details); err != nil {
+			slog.Error(fmt.Sprintf("could not scane item event row: %v", err))
+			continue
+		}
+		openTs, err := time.Parse(time.DateTime, open)
+		if err != nil {
+			slog.Error(fmt.Sprintf("could not parse open time from db: %v", err))
+			continue
+		}
+		closeTs, err := time.Parse(time.DateTime, close)
+		if err != nil {
+			slog.Error(fmt.Sprintf("could not parse close time from db: %v", err))
+			continue
+		}
+		if !closeTs.After(openTs) {
+			e.state = OPEN
+		}
+	}
+	if gotRow {
+		return e
+	}
+	tx, err := e.c.Database.OpenTransaction()
+	if err != nil {
+		slog.Error(fmt.Sprintf("could not open transaction to write new item row"))
+		return e
+	}
+	if err := tx.WriteNewEvent(itemEventName, time.Now(), ""); err != nil {
+		slog.Error(fmt.Sprintf("could not write item event row: %v", err))
+		return e
+	}
+	if err := tx.Commit(); err != nil {
+		slog.Error(fmt.Sprintf("could not commit item event row: %v", err))
+		return e
+	}
+	return e
 }
 
 func (e *ItemEvent) Notify(s *state.State) {
+	slog.Debug("start item notify")
 	if s.Encounter.IsShiny && equalIgnoreCase(s.Encounter.Species.Name, e.species) {
 		// First update
 		e.Update(equalIgnoreCase(s.Encounter.HeldItem.Name, e.item))
@@ -43,6 +109,7 @@ func (e *ItemEvent) Notify(s *state.State) {
 		}
 		// The event is intentionally not reopened.
 	}
+	slog.Debug("end item notify")
 }
 
 func equalIgnoreCase(a, b string) bool {
@@ -98,9 +165,11 @@ func (e *ItemEvent) Resolve() error {
 		refund = true
 	}
 
-	e.resolveBets(tx, bets, refund)
-	e.payoutWinners(tx, payout, winners, userContribution)
-	// TODO: send message
+	userDelta := e.resolveBets(tx, bets, refund)
+	userDelta = e.payoutWinners(tx, payout, winners, userContribution, userDelta)
+	if e.channel != "" {
+		e.sendMessage(userDelta)
+	}
 
 	if err := tx.Commit(); err != nil {
 		return err
@@ -155,7 +224,8 @@ func (e *ItemEvent) calcPayout(bets []itemBet) (int, int, map[string]int) {
 	return payout, winners, userContribution
 }
 
-func (e *ItemEvent) resolveBets(tx db.Transaction, bets []itemBet, refund bool) {
+func (e *ItemEvent) resolveBets(tx db.Transaction, bets []itemBet, refund bool) map[string]int {
+	userDelta := make(map[string]int)
 	for _, b := range bets {
 		loss := true
 		if b.guess == e.resolution {
@@ -171,10 +241,14 @@ func (e *ItemEvent) resolveBets(tx db.Transaction, bets []itemBet, refund bool) 
 		if err := u.Resolve(tx, b.amount, loss); err != nil {
 			continue
 		}
+		if loss {
+			userDelta[b.uid] -= b.amount
+		}
 	}
+	return userDelta
 }
 
-func (e *ItemEvent) payoutWinners(tx db.Transaction, payout int, winners int, userContribution map[string]int) {
+func (e *ItemEvent) payoutWinners(tx db.Transaction, payout int, winners int, userContribution map[string]int, userDelta map[string]int) map[string]int {
 	ratio := float64(payout) / float64(winners)
 	for uid, contribution := range userContribution {
 		u, err := e.c.GetUser(uid)
@@ -185,6 +259,44 @@ func (e *ItemEvent) payoutWinners(tx db.Transaction, payout int, winners int, us
 		if err := u.Earn(tx, gain); err != nil {
 			continue
 		}
+		userDelta[uid] += gain
+	}
+	return userDelta
+}
+
+func (e *ItemEvent) sendMessage(userDelta map[string]int) {
+	message := strings.Builder{}
+	dir := "was NOT holding"
+	if e.resolution {
+		dir = "was HOLDING"
+	}
+	fmt.Fprintf(&message, "Held Item event ended! %s %s %s\n", e.species, dir, e.item)
+
+	deltas := sortedDeltas(userDelta)
+	if len(deltas) < 0 {
+		fmt.Fprintf(&message, "No changes to user balances.")
+	} else {
+		fmt.Fprintf(&message, "\nNet cake gain/loss:")
+	}
+	for i, d := range deltas {
+		user, err := e.c.GetUser(d.uid)
+		if err != nil {
+			slog.Warn(fmt.Sprintf("error getting user while making message: %s", err))
+			continue
+		}
+		balance, _, err := user.Balance()
+		if err != nil {
+			slog.Warn(fmt.Sprintf("error getting users balance: %s", err))
+		}
+		nextDelta := fmt.Sprintf("\n * %s (new balance %d cakes)", d, balance)
+		if len(nextDelta)+message.Len() >= 1975 {
+			fmt.Fprintf(&message, "and %d other participants", len(deltas)-i)
+			break
+		}
+		message.WriteString(nextDelta)
+	}
+	if err := e.c.SendMessage(e.channel, message.String()); err != nil {
+		slog.Warn(fmt.Sprintf("error sending closing message: %v", err))
 	}
 }
 
@@ -201,9 +313,9 @@ func (e *ItemEvent) Wager(uid string, amount int, placed time.Time, bet any) (an
 	}
 	// TODO: make these configurable.  Note they aren't used for any calculation,
 	// just for display.
-	risk := 0.95
+	risk := 0.05
 	if guess {
-		risk = 0.05
+		risk = 0.95
 	}
 	user, err := e.c.GetUser(uid)
 	if err != nil {
@@ -228,9 +340,9 @@ func (e *ItemEvent) Wager(uid string, amount int, placed time.Time, bet any) (an
 
 func (e *ItemEvent) Interpret(blob string) string {
 	if blob == "true" {
-		return fmt.Sprintf("%d WILL hold %d", e.species, e.item)
+		return fmt.Sprintf("%s WILL hold %s", e.species, e.item)
 	}
-	return fmt.Sprintf("%d will NOT hold %d", e.species, e.item)
+	return fmt.Sprintf("%s will NOT hold %s", e.species, e.item)
 }
 
 func (e *ItemEvent) BetsSummary(style string) (string, error) {
@@ -263,12 +375,12 @@ func (e *ItemEvent) BetsSummary(style string) (string, error) {
 			neg += b.amount
 			m = "will NOT hold"
 		}
-		fmt.Fprintf(&betMessage, " * %s placed %d cakes that %s %s %s\n", b.uid, b.amount, e.species, m, e.item)
+		fmt.Fprintf(&betMessage, " * <@%s> placed %d cakes that %s %s %s\n", b.uid, b.amount, e.species, m, e.item)
 	}
 	negFrac := float64(neg) / float64(total)
 	posFrac := float64(pos) / float64(total)
 	message := fmt.Sprintf("There are %d cakes on the Item event\n", total)
-	message += fmt.Sprintf("%d (%.2f%%) AGAINST : FOR %d (%2.f%%)\n", neg, negFrac, pos, posFrac)
+	message += fmt.Sprintf("%d (%.2f%%) AGAINST : FOR %d (%2.f%%)\n", neg, 100*negFrac, pos, 100*posFrac)
 	message = fmt.Sprintf("%s%s", message, betMessage.String())
 	return message, nil
 }

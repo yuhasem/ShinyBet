@@ -44,6 +44,10 @@ func (c *SoonCommand) Command() *discordgo.ApplicationCommand {
 						Name:  "anti",
 						Value: "anti",
 					},
+					{
+						Name:  "item",
+						Value: "item",
+					},
 				},
 			},
 		},

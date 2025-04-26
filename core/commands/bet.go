@@ -161,6 +161,25 @@ func (c *BetCommand) Command() *discordgo.ApplicationCommand {
 						Required:    true,
 					},
 				},
+			}, {
+				Name:        "item",
+				Description: "Place a bet on whether shiny Solrock will hold a Sun Stone",
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Options: []*discordgo.ApplicationCommandOption{
+					{
+						Name:        "amount",
+						Description: "How many cakes to wager",
+						Type:        discordgo.ApplicationCommandOptionInteger,
+						Required:    true,
+						MinValue:    &integerOptionMinValue,
+					},
+					{
+						Name:        "guess",
+						Description: "Will it hold the item?",
+						Type:        discordgo.ApplicationCommandOptionBoolean,
+						Required:    true,
+					},
+				},
 			},
 		},
 	}
@@ -245,7 +264,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
-					Content: fmt.Sprintf("<@%s>'s bet was accepted.", uid),
+					Content: fmt.Sprintf("<@%s>'s bet for %d cakes was accepted.", uid, amount),
 					AllowedMentions: &discordgo.MessageAllowedMentions{
 						// Let's the user be tagged by ID so their name appears
 						// without pinging them.
@@ -275,6 +294,56 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 				},
 			},
 		})
+	case "item":
+		options = options[0].Options
+		amount := int(options[0].IntValue())
+		guess := options[1].BoolValue()
+		// TODO: make a closed bets error user readable.
+		placedBet, err := event.Wager(uid, amount, messageTime, guess)
+		if err != nil {
+			slog.Warn(fmt.Sprintf("error placing wager: %v", err))
+			if errors.Is(err, &core.BalanceError{}) {
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Flags:   discordgo.MessageFlagsEphemeral,
+						Content: "You don't have enough cakes to make that bet!",
+					},
+				})
+				return
+			}
+			genericError(s, i)
+			return
+		}
+		risk, ok := placedBet.(float64)
+		if !ok {
+			slog.Warn(fmt.Sprintf("bad return from placed wager: %v", err))
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: fmt.Sprintf("<@%s>'s bet for %d cakes was accepted.", uid, amount),
+					AllowedMentions: &discordgo.MessageAllowedMentions{
+						// Let's the user be tagged by ID so their name appears
+						// without pinging them.
+						Parse: []discordgo.AllowedMentionType{},
+					},
+				},
+			})
+			return
+		}
+		guessStr := fmt.Sprintf("%t", guess)
+		betDisplay := event.Interpret(guessStr)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("<@%s> placed %d cakes that %s (%.2f%% risk)", uid, amount, betDisplay, 100*risk),
+				AllowedMentions: &discordgo.MessageAllowedMentions{
+					// Let's the user be tagged by ID so their name appears
+					// without pinging them.
+					Parse: []discordgo.AllowedMentionType{},
+				},
+			},
+		})
 	default:
 		slog.Debug("no valid event specified")
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -284,6 +353,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 				Content: "That's not an event you can bet on.",
 			},
 		})
+		return
 	}
 	betSuccess.Inc()
 }

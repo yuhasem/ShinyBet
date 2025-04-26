@@ -111,12 +111,12 @@ func TestItemWager(t *testing.T) {
 	if !ok {
 		t.Errorf("risk returned from wager is not a float64")
 	}
-	if r != 0.05 {
+	if r != 0.95 {
 		t.Errorf("wager returned display risk %f, wanted 0.05", r)
 	}
 	risk, _ = e.Wager("user2", 800, time.Now(), false)
 	r = risk.(float64)
-	if r != 0.95 {
+	if r != 0.05 {
 		t.Errorf("wager returned display risk %f, wanted 0.95", r)
 	}
 	e.Wager("user3", 200, time.Now(), false)

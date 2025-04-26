@@ -63,7 +63,8 @@ func (d *DB) LoadUser(uid string) (Scanner, error) {
 	return d.db.Query(`SELECT * FROM users WHERE id = ?`, uid)
 }
 
-// Loads all the bets placed for the given events after that events was opened.
+// Loads all the bets placed for the given events between the event's open and
+// close time.
 func (d *DB) LoadBets(eid string) (Scanner, error) {
 	return d.db.Query(`
 	SELECT b.* FROM bets b
@@ -77,13 +78,15 @@ func (d *DB) Leaderboard() (Scanner, error) {
 	return d.db.Query(`SELECT id, balance FROM leaderboard LIMIT 10;`)
 }
 
+// Loads all the open bets placed by the user across all events.
 func (d *DB) LoadUserBets(uid string) (Scanner, error) {
 	return d.db.Query(`
 	SELECT b.eid, b.amount, b.risk, b.bet
 	FROM bets b
 	INNER JOIN events e ON b.eid = e.id
 	WHERE b.uid = ?
-	  AND unixepoch(b.placed) > unixepoch(e.lastOpen);`, uid)
+	  AND unixepoch(b.placed) > unixepoch(e.lastOpen)
+	  AND unixepoch(b.placed) > unixepoch(e.lastClose);`, uid)
 }
 
 func (d *DB) Rank(uid string) (Scanner, error) {

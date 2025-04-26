@@ -45,7 +45,7 @@ func TestLeaderboard(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error loading leaderboard: %s", err)
 	}
-	want := []string{"user1,1000", "user2,500"}
+	want := []string{"user1,1000", "user2,500", "user3,400"}
 	got := []string{}
 	for rows.Next() {
 		var id string
@@ -95,11 +95,52 @@ func TestLoadEvent(t *testing.T) {
 	}
 }
 
+func testBetEqual(a, b testBet) bool {
+	if a.uid != b.uid {
+		return false
+	}
+	if a.eid != b.eid {
+		return false
+	}
+	if a.placed != b.placed {
+		return false
+	}
+	if a.amount != b.amount {
+		return false
+	}
+	if a.risk != b.risk {
+		return false
+	}
+	if a.bet != b.bet {
+		return false
+	}
+	return true
+}
+
 func TestLoadBets(t *testing.T) {
+	want := []testBet{
+		testBet{
+			uid:    "user2",
+			eid:    "shiny",
+			placed: "2025-03-01 01:00:00.000",
+			amount: 100,
+			risk:   0.567,
+			bet:    "true,10000",
+		},
+		testBet{
+			uid:    "user3",
+			eid:    "shiny",
+			placed: "2025-03-01 02:00:00.000",
+			amount: 200,
+			risk:   0.4,
+			bet:    "false,10",
+		},
+	}
 	rows, err := db.LoadBets("shiny")
 	if err != nil {
 		t.Errorf("unexpected error loading bets: %s", err)
 	}
+	var found int
 	for rows.Next() {
 		var uid string
 		var eid string
@@ -110,51 +151,99 @@ func TestLoadBets(t *testing.T) {
 		if err := rows.Scan(&uid, &eid, &placed, &amount, &risk, &blob); err != nil {
 			t.Errorf("unexpected error during scan: %s", err)
 		}
-		if uid != "user2" {
-			t.Errorf("loaded user %s, want user2", uid)
+		got := testBet{
+			uid:    uid,
+			eid:    eid,
+			placed: placed,
+			amount: amount,
+			risk:   risk,
+			bet:    blob,
 		}
-		if eid != "shiny" {
-			t.Errorf("loaded event %s, want shiny", eid)
+		foundThis := false
+		for _, w := range want {
+			if testBetEqual(got, w) {
+				foundThis = true
+				found++
+				break
+			}
 		}
-		if placed != "2025-03-01 01:00:00.000" {
-			t.Errorf("loaded place time %s, want 2025-03-01 01:00:00.000", placed)
+		if !foundThis {
+			t.Errorf("unexpected bet found: %+v", got)
 		}
-		if amount != 100 {
-			t.Errorf("loaded amount %d, want 100", amount)
-		}
-		if risk != 0.567 {
-			t.Errorf("loaded risk %f, want 0.567", risk)
-		}
-		if blob != "true,10000" {
-			t.Errorf("loaded blob %s, want true,10000", blob)
-		}
+	}
+	if found != len(want) {
+		t.Errorf("not all wanted bets were found %+v", want)
 	}
 }
 
 func TestLoadUserBets(t *testing.T) {
-	rows, err := db.LoadUserBets("user2")
-	if err != nil {
-		t.Errorf("unexpected error loading user bets: %s", err)
-	}
-	for rows.Next() {
-		var eid string
-		var amount int
-		var risk float64
-		var blob string
-		if err := rows.Scan(&eid, &amount, &risk, &blob); err != nil {
-			t.Errorf("unexpecte error scanning row: %s", err)
+	for _, tc := range []struct {
+		user string
+		want []testBet
+	}{
+		{
+			user: "user2",
+			want: []testBet{
+				testBet{
+					uid:    "",
+					eid:    "shiny",
+					placed: "",
+					amount: 100,
+					risk:   0.567,
+					bet:    "true,10000",
+				},
+			},
+		},
+		{
+			// Importantly, the item bet doesn't show up.
+			user: "user3",
+			want: []testBet{
+				testBet{
+					uid:    "",
+					eid:    "shiny",
+					placed: "",
+					amount: 200,
+					risk:   0.4,
+					bet:    "false,10",
+				},
+			},
+		},
+	} {
+		rows, err := db.LoadUserBets(tc.user)
+		if err != nil {
+			t.Errorf("unexpected error loading user bets: %s", err)
 		}
-		if eid != "shiny" {
-			t.Errorf("loaded event %s, want shiny", eid)
+		var found int
+		for rows.Next() {
+			var eid string
+			var amount int
+			var risk float64
+			var blob string
+			if err := rows.Scan(&eid, &amount, &risk, &blob); err != nil {
+				t.Errorf("unexpected error scanning row: %s", err)
+			}
+			got := testBet{
+				uid:    "",
+				eid:    eid,
+				placed: "",
+				amount: amount,
+				risk:   risk,
+				bet:    blob,
+			}
+			foundThis := false
+			for _, w := range tc.want {
+				if testBetEqual(got, w) {
+					foundThis = true
+					found++
+					break
+				}
+			}
+			if !foundThis {
+				t.Errorf("unexpected bet found: %+v", got)
+			}
 		}
-		if amount != 100 {
-			t.Errorf("loaded amount %d, want 100", amount)
-		}
-		if risk != 0.567 {
-			t.Errorf("loaded risk %f, want 0.567", risk)
-		}
-		if blob != "true,10000" {
-			t.Errorf("loaded blob %s, want true,10000", blob)
+		if found != len(tc.want) {
+			t.Errorf("not all wanted bets were found: %+v", tc.want)
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"bet/core/commands"
 	"bet/core/db"
 	"bet/core/events"
+	"bet/env"
 	"bet/state"
 	"fmt"
 	"log/slog"
@@ -35,7 +36,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Load environment configuration
-	environment, err := LoadEnvironemnt()
+	environment, err := env.LoadEnvironemnt()
 	if err != nil {
 		slog.Error(fmt.Sprintf("error loading environment yaml: %s", err))
 		return
@@ -82,16 +83,14 @@ func main() {
 	}
 
 	// Command initialization and registration.
-	// TODO: commands that take an event as argument (bet, ledger, soon) should
-	// listen to configuation that tells which events are enabled.
 	cs := map[string]Command{
 		"balance":     &commands.BalanceCommand{Core: core},
-		"bet":         &commands.BetCommand{Core: core},
+		"bet":         commands.NewBetCommand(core, environment.Events),
 		"leaderboard": &commands.LeaderboardCommand{Core: core},
 		"bets":        &commands.ListBetsCommand{Core: core},
 		"donate":      &commands.DonateCommand{Core: core},
-		"ledger":      &commands.LedgerCommand{Core: core},
-		"soon":        &commands.SoonCommand{Core: core},
+		"ledger":      commands.NewLedgerCommand(core, environment.Events),
+		"soon":        commands.NewSoonCommand(core, environment.Events),
 	}
 	dg.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		defer func() {
@@ -136,7 +135,7 @@ func main() {
 	}
 }
 
-func StartEvents(c *core.Core, l *state.Listener, channel string, conf EventConfig) error {
+func StartEvents(c *core.Core, l *state.Listener, channel string, conf env.EventConfig) error {
 	if conf.EnableShiny {
 		shinyEvent := events.NewShinyEvent(c, channel)
 		if err := c.RegisterEvent("shiny", shinyEvent); err != nil {
@@ -154,7 +153,7 @@ func StartEvents(c *core.Core, l *state.Listener, channel string, conf EventConf
 		l.Register(antiEvent)
 	}
 	if conf.ItemEvent.Enable {
-		itemEvent := events.NewItemEvent(c, conf.ItemEvent.Species, conf.ItemEvent.Item, conf.ItemEvent.Probability, channel)
+		itemEvent := events.NewItemEvent(c, conf.ItemEvent, channel)
 		if err := c.RegisterEvent("item", itemEvent); err != nil {
 			slog.Error(fmt.Sprintf("err registering event: %s", err))
 			return err

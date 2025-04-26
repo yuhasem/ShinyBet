@@ -3,6 +3,7 @@ package events
 import (
 	"bet/core"
 	"bet/core/db"
+	"bet/env"
 	"bet/state"
 	"fmt"
 	"log/slog"
@@ -30,12 +31,12 @@ type ItemEvent struct {
 	channel    string
 }
 
-func NewItemEvent(c *core.Core, species, item string, prob float64, channel string) *ItemEvent {
+func NewItemEvent(c *core.Core, conf env.ItemEventConfig, channel string) *ItemEvent {
 	e := &ItemEvent{
 		c:       c,
-		species: species,
-		item:    item,
-		prob:    prob,
+		species: conf.Species,
+		item:    conf.Item,
+		prob:    conf.Probability,
 		channel: channel,
 	}
 	e = loadItemEvent(e)

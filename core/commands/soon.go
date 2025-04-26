@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bet/core"
+	"bet/env"
 	"fmt"
 	"log/slog"
 
@@ -22,10 +23,29 @@ var (
 )
 
 type SoonCommand struct {
-	Core *core.Core
+	core *core.Core
+	conf env.EventConfig
+}
+
+func NewSoonCommand(c *core.Core, conf env.EventConfig) *SoonCommand {
+	return &SoonCommand{core: c, conf: conf}
 }
 
 func (c *SoonCommand) Command() *discordgo.ApplicationCommand {
+	// Bool events don't make sense with /soon, so "item" events are not set.
+	choices := make([]*discordgo.ApplicationCommandOptionChoice, 0)
+	if c.conf.EnableShiny {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  "shiny",
+			Value: "shiny",
+		})
+	}
+	if c.conf.EnableAnti {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  "anti",
+			Value: "anti",
+		})
+	}
 	return &discordgo.ApplicationCommand{
 		Name:        "soon",
 		Description: "See a summary of bets focusing on upcoming bets.",
@@ -35,20 +55,7 @@ func (c *SoonCommand) Command() *discordgo.ApplicationCommand {
 				Description: "Which event to see the bets for.",
 				Type:        discordgo.ApplicationCommandOptionString,
 				Required:    true,
-				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{
-						Name:  "shiny",
-						Value: "shiny",
-					},
-					{
-						Name:  "anti",
-						Value: "anti",
-					},
-					{
-						Name:  "item",
-						Value: "item",
-					},
-				},
+				Choices:     choices,
 			},
 		},
 	}
@@ -58,7 +65,7 @@ func (c *SoonCommand) Interaction(s *discordgo.Session, i *discordgo.Interaction
 	soonReqs.Inc()
 	slog.Debug("soon interaction started")
 	eid := i.ApplicationCommandData().Options[0].StringValue()
-	event, err := c.Core.GetEvent(eid)
+	event, err := c.core.GetEvent(eid)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("error getting event: %v", err))
 		genericError(s, i)

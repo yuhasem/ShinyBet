@@ -3,6 +3,7 @@ package commands
 import (
 	"bet/core"
 	"bet/core/events"
+	"bet/env"
 	"fmt"
 	"log/slog"
 	"time"
@@ -11,6 +12,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+// y tho.
+var integerOptionMinValue = 1.0
 
 var (
 	betReqs = promauto.NewCounter(prometheus.CounterOpts{
@@ -24,162 +28,123 @@ var (
 )
 
 type BetCommand struct {
-	Core *core.Core
+	core *core.Core
+	conf env.EventConfig
+}
+
+func NewBetCommand(c *core.Core, conf env.EventConfig) *BetCommand {
+	return &BetCommand{core: c, conf: conf}
 }
 
 func (c *BetCommand) Command() *discordgo.ApplicationCommand {
-	// y tho.
-	integerOptionMinValue := 1.0
+	options := make([]*discordgo.ApplicationCommandOption, 0)
+	if c.conf.EnableShiny {
+		options = append(options, &discordgo.ApplicationCommandOption{
+			Name:        "shiny",
+			Description: "Place a bet on the phase length of this shiny encounter",
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Options:     phaseOptions(),
+		})
+	}
+	if c.conf.EnableAnti {
+		options = append(options, &discordgo.ApplicationCommandOption{
+			Name:        "anti",
+			Description: "Place a bet on the phase length of this anti shiny encounter",
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Options:     phaseOptions(),
+		})
+	}
+	if c.conf.ItemEvent.Enable {
+		options = append(options, &discordgo.ApplicationCommandOption{
+			Name:        "item",
+			Description: fmt.Sprintf("Place a bet on whether %s will hold %s", c.conf.ItemEvent.Species, c.conf.ItemEvent.Item),
+			Type:        discordgo.ApplicationCommandOptionSubCommand,
+			Options:     boolOptions(),
+		})
+	}
 	return &discordgo.ApplicationCommand{
 		Name:        "bet",
 		Description: "Place a bet on when an event will happen",
-		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Name:        "shiny",
-				Description: "Place a bet on the phase length of this shiny",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Name:        "amount",
-						Description: "How many cakes to wager",
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    true,
-						MinValue:    &integerOptionMinValue,
-					},
-					{
-						Name:        "over-under",
-						Description: "Whether to bet over or under the phase lenth",
-						Type:        discordgo.ApplicationCommandOptionString,
-						Required:    true,
-						Choices: []*discordgo.ApplicationCommandOptionChoice{
-							{
-								Name:  "over",
-								Value: ">",
-							},
-							{
-								Name:  ">",
-								Value: ">",
-							},
-							{
-								Name:  "greater than",
-								Value: ">",
-							},
-							{
-								Name:  "under",
-								Value: "<",
-							},
-							{
-								Name:  "<",
-								Value: "<",
-							},
-							{
-								Name:  "less than",
-								Value: "<",
-							},
-							{
-								Name:  "equal",
-								Value: "=",
-							},
-							{
-								Name:  "exact",
-								Value: "=",
-							},
-							{
-								Name:  "=",
-								Value: "=",
-							},
-						},
-					},
-					{
-						Name:        "phase",
-						Description: "Phase length",
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    true,
-					},
+		Options:     options,
+	}
+}
+
+func phaseOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Name:        "amount",
+			Description: "How many cakes to wager",
+			Type:        discordgo.ApplicationCommandOptionInteger,
+			Required:    true,
+			MinValue:    &integerOptionMinValue,
+		},
+		{
+			Name:        "over-under",
+			Description: "Whether to bet over or under the phase lenth",
+			Type:        discordgo.ApplicationCommandOptionString,
+			Required:    true,
+			Choices: []*discordgo.ApplicationCommandOptionChoice{
+				{
+					Name:  "over",
+					Value: ">",
 				},
-			}, {
-				Name:        "anti",
-				Description: "Place a bet on the phase length of this anti shiny",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Name:        "amount",
-						Description: "How many cakes to wager",
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    true,
-						MinValue:    &integerOptionMinValue,
-					},
-					{
-						Name:        "over-under",
-						Description: "Whether to bet over or under the phase lenth",
-						Type:        discordgo.ApplicationCommandOptionString,
-						Required:    true,
-						Choices: []*discordgo.ApplicationCommandOptionChoice{
-							{
-								Name:  "over",
-								Value: ">",
-							},
-							{
-								Name:  ">",
-								Value: ">",
-							},
-							{
-								Name:  "greater than",
-								Value: ">",
-							},
-							{
-								Name:  "under",
-								Value: "<",
-							},
-							{
-								Name:  "<",
-								Value: "<",
-							},
-							{
-								Name:  "less than",
-								Value: "<",
-							},
-							{
-								Name:  "equal",
-								Value: "=",
-							},
-							{
-								Name:  "exact",
-								Value: "=",
-							},
-							{
-								Name:  "=",
-								Value: "=",
-							},
-						},
-					},
-					{
-						Name:        "phase",
-						Description: "Phase length",
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    true,
-					},
+				{
+					Name:  ">",
+					Value: ">",
 				},
-			}, {
-				Name:        "item",
-				Description: "Place a bet on whether shiny Solrock will hold a Sun Stone",
-				Type:        discordgo.ApplicationCommandOptionSubCommand,
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Name:        "amount",
-						Description: "How many cakes to wager",
-						Type:        discordgo.ApplicationCommandOptionInteger,
-						Required:    true,
-						MinValue:    &integerOptionMinValue,
-					},
-					{
-						Name:        "guess",
-						Description: "Will it hold the item?",
-						Type:        discordgo.ApplicationCommandOptionBoolean,
-						Required:    true,
-					},
+				{
+					Name:  "greater than",
+					Value: ">",
+				},
+				{
+					Name:  "under",
+					Value: "<",
+				},
+				{
+					Name:  "<",
+					Value: "<",
+				},
+				{
+					Name:  "less than",
+					Value: "<",
+				},
+				{
+					Name:  "equal",
+					Value: "=",
+				},
+				{
+					Name:  "exact",
+					Value: "=",
+				},
+				{
+					Name:  "=",
+					Value: "=",
 				},
 			},
+		},
+		{
+			Name:        "phase",
+			Description: "Phase length",
+			Type:        discordgo.ApplicationCommandOptionInteger,
+			Required:    true,
+		},
+	}
+}
+
+func boolOptions() []*discordgo.ApplicationCommandOption {
+	return []*discordgo.ApplicationCommandOption{
+		{
+			Name:        "amount",
+			Description: "How many cakes to wager",
+			Type:        discordgo.ApplicationCommandOptionInteger,
+			Required:    true,
+			MinValue:    &integerOptionMinValue,
+		},
+		{
+			Name:        "guess",
+			Description: "Will it hold the item?",
+			Type:        discordgo.ApplicationCommandOptionBoolean,
+			Required:    true,
 		},
 	}
 }
@@ -188,7 +153,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 	betReqs.Inc()
 	slog.Debug("bet interaction started")
 	options := i.ApplicationCommandData().Options
-	event, err := c.Core.GetEvent(options[0].Name)
+	event, err := c.core.GetEvent(options[0].Name)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("error getting event %s: %v", options[0].Name, err))
 		genericError(s, i)

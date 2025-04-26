@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bet/core"
+	"bet/env"
 	"fmt"
 	"log/slog"
 
@@ -22,10 +23,34 @@ var (
 )
 
 type LedgerCommand struct {
-	Core *core.Core
+	core *core.Core
+	conf env.EventConfig
+}
+
+func NewLedgerCommand(c *core.Core, conf env.EventConfig) *LedgerCommand {
+	return &LedgerCommand{core: c, conf: conf}
 }
 
 func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
+	choices := make([]*discordgo.ApplicationCommandOptionChoice, 0)
+	if c.conf.EnableShiny {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  "shiny",
+			Value: "shiny",
+		})
+	}
+	if c.conf.EnableAnti {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  "anti",
+			Value: "anti",
+		})
+	}
+	if c.conf.ItemEvent.Enable {
+		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+			Name:  "item",
+			Value: "item",
+		})
+	}
 	return &discordgo.ApplicationCommand{
 		Name:        "ledger",
 		Description: "See a summary of bets focusing on impactful bets.",
@@ -35,20 +60,7 @@ func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
 				Description: "Which event to see the bets for.",
 				Type:        discordgo.ApplicationCommandOptionString,
 				Required:    true,
-				Choices: []*discordgo.ApplicationCommandOptionChoice{
-					{
-						Name:  "shiny",
-						Value: "shiny",
-					},
-					{
-						Name:  "anti",
-						Value: "anti",
-					},
-					{
-						Name:  "item",
-						Value: "item",
-					},
-				},
+				Choices:     choices,
 			},
 		},
 	}
@@ -58,7 +70,7 @@ func (c *LedgerCommand) Interaction(s *discordgo.Session, i *discordgo.Interacti
 	ledgerReqs.Inc()
 	slog.Debug("ledge interaction started")
 	eid := i.ApplicationCommandData().Options[0].StringValue()
-	event, err := c.Core.GetEvent(eid)
+	event, err := c.core.GetEvent(eid)
 	if err != nil {
 		slog.Warn(fmt.Sprintf("error getting event: %v", err))
 		genericError(s, i)

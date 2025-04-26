@@ -154,10 +154,17 @@ func StartEvents(c *core.Core, l *state.Listener, channel string, conf EventConf
 		l.Register(antiEvent)
 	}
 	if conf.ItemEvent.Enable {
-		itemEvent := events.NewItemEvent(c, conf.ItemEvent.Species, conf.ItemEvent.Item, channel)
+		itemEvent := events.NewItemEvent(c, conf.ItemEvent.Species, conf.ItemEvent.Item, conf.ItemEvent.Probability, channel)
 		if err := c.RegisterEvent("item", itemEvent); err != nil {
 			slog.Error(fmt.Sprintf("err registering event: %s", err))
 			return err
+		}
+		if conf.ItemEvent.ReopenOnStart {
+			if err := itemEvent.Open(time.Now()); err != nil {
+				// This should be expected when the itemEvent is already open,
+				// so don't fail out here.
+				slog.Warn(fmt.Sprintf("err re-opening event on start: %v", err))
+			}
 		}
 		l.Register(itemEvent)
 	}

@@ -89,3 +89,9 @@ func sortedDeltas(userDelta map[string]int) []delta {
 	})
 	return deltas
 }
+
+type BettingClosedError struct{}
+
+func (err BettingClosedError) Error() string {
+	return "betting is closed"
+}

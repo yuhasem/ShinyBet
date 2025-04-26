@@ -101,6 +101,7 @@ func TestItemWager(t *testing.T) {
 	c := core.New(d, s)
 	e := ItemEvent{
 		c:     c,
+		prob:  0.05,
 		state: OPEN,
 	}
 	risk, err := e.Wager("user1", 100, time.Now(), true)

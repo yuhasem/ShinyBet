@@ -3,7 +3,6 @@ package commands
 import (
 	"bet/core"
 	"bet/core/events"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -234,28 +233,7 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		}
 		placedBet, err := event.Wager(uid, amount, messageTime, b)
 		if err != nil {
-			slog.Warn(fmt.Sprintf("error placing wager: %v", err))
-			if errors.Is(err, &core.BalanceError{}) {
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Flags:   discordgo.MessageFlagsEphemeral,
-						Content: "You don't have enough cakes to make that bet!",
-					},
-				})
-				return
-			}
-			if errors.Is(err, &events.PhaseLengthError{}) {
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Flags:   discordgo.MessageFlagsEphemeral,
-						Content: "The predicted phase needs to be greater than the current phase!",
-					},
-				})
-				return
-			}
-			genericError(s, i)
+			respondToWagerError(s, i, err)
 			return
 		}
 		p, ok := placedBet.(events.PlacedPhaseBet)
@@ -298,21 +276,9 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		options = options[0].Options
 		amount := int(options[0].IntValue())
 		guess := options[1].BoolValue()
-		// TODO: make a closed bets error user readable.
 		placedBet, err := event.Wager(uid, amount, messageTime, guess)
 		if err != nil {
-			slog.Warn(fmt.Sprintf("error placing wager: %v", err))
-			if errors.Is(err, &core.BalanceError{}) {
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Flags:   discordgo.MessageFlagsEphemeral,
-						Content: "You don't have enough cakes to make that bet!",
-					},
-				})
-				return
-			}
-			genericError(s, i)
+			respondToWagerError(s, i, err)
 			return
 		}
 		risk, ok := placedBet.(float64)

@@ -48,6 +48,13 @@ type ItemEventConfig struct {
 	Enable  bool
 	Species string
 	Item    string
+	// The probability of species holding the item.  This is used for display
+	// purposes only.
+	Probability float64
+	// When true, the event will be reopened when the bot starts.  This is used
+	// for when an item event has closed, you've changed configuration, and want
+	// to reopen it.
+	ReopenOnStart bool
 }
 
 func LoadEnvironemnt() (*Enviroment, error) {

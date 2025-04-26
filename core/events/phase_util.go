@@ -387,7 +387,7 @@ func (p *phaseLifecycle) Wager(uid string, amount int, placed time.Time, bet any
 	defer p.mu.Unlock()
 	wagerReqs.WithLabelValues(p.eventId).Inc()
 	if p.state != OPEN {
-		return nil, fmt.Errorf("betting is closed")
+		return nil, BettingClosedError{}
 	}
 	b, ok := bet.(PhaseBet)
 	if !ok {

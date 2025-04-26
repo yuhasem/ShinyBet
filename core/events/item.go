@@ -21,6 +21,7 @@ type ItemEvent struct {
 	// depends on whether or not the species holds the `item`.
 	species string
 	item    string
+	prob    float64
 	// State keeping for lifecycle
 	mu         sync.Mutex
 	state      EventState
@@ -29,11 +30,12 @@ type ItemEvent struct {
 	channel    string
 }
 
-func NewItemEvent(c *core.Core, species, item string, channel string) *ItemEvent {
+func NewItemEvent(c *core.Core, species, item string, prob float64, channel string) *ItemEvent {
 	e := &ItemEvent{
 		c:       c,
 		species: species,
 		item:    item,
+		prob:    prob,
 		channel: channel,
 	}
 	e = loadItemEvent(e)
@@ -305,17 +307,15 @@ func (e *ItemEvent) Wager(uid string, amount int, placed time.Time, bet any) (an
 	defer e.mu.Unlock()
 	wagerReqs.WithLabelValues(itemEventName).Inc()
 	if e.state != OPEN {
-		return 0.0, fmt.Errorf("betting is closed")
+		return 0.0, BettingClosedError{}
 	}
 	guess, ok := bet.(bool)
 	if !ok {
 		return 0.0, fmt.Errorf("bet argument must be of type bool")
 	}
-	// TODO: make these configurable.  Note they aren't used for any calculation,
-	// just for display.
-	risk := 0.05
+	risk := e.prob
 	if guess {
-		risk = 0.95
+		risk = 1 - e.prob
 	}
 	user, err := e.c.GetUser(uid)
 	if err != nil {
@@ -380,7 +380,7 @@ func (e *ItemEvent) BetsSummary(style string) (string, error) {
 	negFrac := float64(neg) / float64(total)
 	posFrac := float64(pos) / float64(total)
 	message := fmt.Sprintf("There are %d cakes on the Item event\n", total)
-	message += fmt.Sprintf("%d (%.2f%%) AGAINST : FOR %d (%2.f%%)\n", neg, 100*negFrac, pos, 100*posFrac)
+	message += fmt.Sprintf("%d (%.2f%%) AGAINST : FOR %d (%.2f%%)\n", neg, 100*negFrac, pos, 100*posFrac)
 	message = fmt.Sprintf("%s%s", message, betMessage.String())
 	return message, nil
 }

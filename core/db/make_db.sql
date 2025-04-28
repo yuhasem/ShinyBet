@@ -26,6 +26,11 @@ CREATE TABLE bets(
 	PRIMARY KEY (uid, placed)
 );
 
+CREATE TABLE crons(
+	id TEXT PRIMARY KEY,
+	lastRun TEXT	
+);
+
 CREATE VIEW leaderboard(id, balance, rank) AS
 SELECT id, balance, row_number() OVER()
 FROM (
@@ -43,3 +48,5 @@ INSERT OR REPLACE INTO bets VALUES('user2', 'shiny', '2025-03-01 01:00:00.000', 
 INSERT OR REPLACE INTO bets VALUES('user3', 'shiny', '2025-02-28 00:00:00.000', 500, 0.1, 'false,1');
 INSERT OR REPLACE INTO bets VALUES('user3', 'shiny', '2025-03-01 02:00:00.000', 200, 0.4, 'false,10');
 INSERT OR REPLACE INTO bets VALUES('user3', 'item', '2025-03-01 12:00:00.000', 100, 0.95, 'true');
+
+INSERT OR REPLACE INTO crons VALUES('test', '2025-03-01 12:00:00.000');

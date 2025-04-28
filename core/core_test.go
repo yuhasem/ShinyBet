@@ -18,7 +18,6 @@ func NewFakeClock(start time.Time) *fakeClock {
 	}
 }
 
-// TODO: actually mock these.
 func (f *fakeClock) Now() time.Time {
 	return f.t
 }

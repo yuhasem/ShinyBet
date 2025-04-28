@@ -315,6 +315,42 @@ func TestWriteInBets(t *testing.T) {
 	}
 }
 
+func TestCrons(t *testing.T) {
+	for _, tc := range []struct {
+		id    string
+		write time.Time
+		want  time.Time
+	}{
+		{
+			id:   "test",
+			want: time.Date(2025, time.March, 1, 12, 0, 0, 0, time.UTC),
+		}, {
+			id:   "not exist",
+			want: time.Time{},
+		}, {
+			id:    "other not exist",
+			write: time.Date(2025, time.March, 2, 0, 0, 0, 0, time.UTC),
+			want:  time.Date(2025, time.March, 2, 0, 0, 0, 0, time.UTC),
+		}, {
+			id:    "test",
+			write: time.Date(2025, time.March, 2, 0, 0, 0, 0, time.UTC),
+			want:  time.Date(2025, time.March, 2, 0, 0, 0, 0, time.UTC),
+		},
+	} {
+		if !tc.write.IsZero() {
+			tx, _ := db.OpenTransaction()
+			if err := tx.WriteCronRun(tc.id, tc.write); err != nil {
+				t.Errorf("error writing time to cron: %v", err)
+			}
+			tx.Commit()
+		}
+		got := db.LastRun(tc.id)
+		if got != tc.want {
+			t.Errorf("LastRun(%s) = %s, want %s", tc.id, got, tc.want)
+		}
+	}
+}
+
 func TestMain(m *testing.M) {
 	d, err := setupDB()
 	db = d

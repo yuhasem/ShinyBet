@@ -20,6 +20,7 @@ type Database interface {
 	Leaderboard() (Scanner, error)
 	LoadUserBets(uid string) (Scanner, error)
 	Rank(uid string) (Scanner, error)
+	LastRun(id string) time.Time
 	OpenTransaction() (Transaction, error)
 }
 
@@ -93,6 +94,24 @@ func (d *DB) Rank(uid string) (Scanner, error) {
 	return d.db.Query(`SELECT rank FROM leaderboard WHERE id = ?`, uid)
 }
 
+// Fetches the last run time of the cron with given id.  Returns a zero time if
+// the cron couldn't be found or had an invalid timestamp written.
+func (d *DB) LastRun(id string) time.Time {
+	row, err := d.db.Query(`SELECT lastRun FROM crons WHERE id = ?`, id)
+	if err != nil {
+		return time.Time{}
+	}
+	var lastRun time.Time
+	for row.Next() {
+		var ts string
+		if err := row.Scan(&ts); err != nil {
+			return time.Time{}
+		}
+		lastRun, _ = time.Parse(time.DateTime, ts)
+	}
+	return lastRun
+}
+
 func (d *DB) OpenTransaction() (Transaction, error) {
 	tx, err := d.db.Begin()
 	if err != nil {
@@ -113,6 +132,7 @@ type Transaction interface {
 	WriteClosed(eid string, closed time.Time) error
 	WriteEventDetails(eid string, details string) error
 	RefreshBalance() error
+	WriteCronRun(id string, ts time.Time) error
 }
 
 type Tx struct {
@@ -166,5 +186,10 @@ func (t *Tx) WriteEventDetails(eid string, details string) error {
 
 func (t *Tx) RefreshBalance() error {
 	_, err := t.tx.Exec("UPDATE users SET balance = 100 WHERE balance < 100;")
+	return err
+}
+
+func (t *Tx) WriteCronRun(id string, ts time.Time) error {
+	_, err := t.tx.Exec("INSERT OR REPLACE INTO crons VALUES(?, ?)", id, ts.Format(time.DateTime))
 	return err
 }

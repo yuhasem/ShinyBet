@@ -73,7 +73,7 @@ func TestPhaseOpen(t *testing.T) {
 	} {
 		d := db.Fake()
 		s := &FakeSession{}
-		core := core.New(d, s)
+		core := core.New(d, s, nil)
 		l := phaseLifecycle{
 			eventId: "test",
 			core:    core,
@@ -128,7 +128,7 @@ func TestPhaseClose(t *testing.T) {
 	} {
 		d := db.Fake()
 		s := &FakeSession{}
-		core := core.New(d, s)
+		core := core.New(d, s, nil)
 		l := phaseLifecycle{
 			eventId: "test",
 			core:    core,
@@ -159,7 +159,7 @@ func TestPhaseClose(t *testing.T) {
 func TestPhaseResolve(t *testing.T) {
 	d := db.Fake()
 	s := &FakeSession{}
-	c := core.New(d, s)
+	c := core.New(d, s, nil)
 	l := phaseLifecycle{
 		eventId:     "test",
 		probability: 0.5,
@@ -212,7 +212,7 @@ func TestPhaseResolve(t *testing.T) {
 func TestPhaseResolveNoWiners(t *testing.T) {
 	d := db.Fake()
 	s := &FakeSession{}
-	c := core.New(d, s)
+	c := core.New(d, s, nil)
 	l := phaseLifecycle{
 		eventId:     "test",
 		probability: 0.5,
@@ -256,7 +256,7 @@ func TestPhaseResolveNoWiners(t *testing.T) {
 func TestPhaseResolveNoChannel(t *testing.T) {
 	d := db.Fake()
 	s := &FakeSession{}
-	c := core.New(d, s)
+	c := core.New(d, s, nil)
 	l := phaseLifecycle{
 		eventId:     "test",
 		probability: 0.5,
@@ -304,7 +304,7 @@ func TestInterpretPhaseBet(t *testing.T) {
 func TestPhaseBetSummary(t *testing.T) {
 	d := db.Fake()
 	s := &FakeSession{}
-	c := core.New(d, s)
+	c := core.New(d, s, nil)
 	l := phaseLifecycle{
 		eventId:     "test",
 		displayName: "A Shiny Test",

@@ -13,7 +13,7 @@ import (
 func TestItemNotify(t *testing.T) {
 	d := db.Fake()
 	s := &FakeSession{}
-	c := core.New(d, s)
+	c := core.New(d, s, nil)
 	u, _ := c.GetUser("user")
 	e := ItemEvent{
 		c:       c,
@@ -98,7 +98,7 @@ func TestItemNotify(t *testing.T) {
 func TestItemWager(t *testing.T) {
 	d := db.Fake()
 	s := &FakeSession{}
-	c := core.New(d, s)
+	c := core.New(d, s, nil)
 	e := ItemEvent{
 		c:     c,
 		prob:  0.05,

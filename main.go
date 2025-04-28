@@ -24,6 +24,11 @@ type Command interface {
 	Interaction(s *discordgo.Session, i *discordgo.InteractionCreate)
 }
 
+type realClock struct{}
+
+func (realClock) Now() time.Time                         { return time.Now() }
+func (realClock) After(d time.Duration) <-chan time.Time { return time.After(d) }
+
 func main() {
 	// Set up structured logging
 	nowStr := time.Now().Format("060102_150405")
@@ -64,11 +69,12 @@ func main() {
 	defer database.Close()
 
 	// Create the core.
-	core := core.New(database, dg)
+	core := core.New(database, dg, realClock{})
 	if core == nil {
 		slog.Error("could not create core, exiting")
 		return
 	}
+	defer core.Close()
 
 	// Create Events/Updaters/State objects.
 	// _ = updater.NewShinyUpdater(core, dg)

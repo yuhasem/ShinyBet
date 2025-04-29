@@ -156,6 +156,11 @@ func (p *phaseLifecycle) Update(value any) {
 	currentPhase.WithLabelValues(p.eventId).Set(float64(phase))
 }
 
+// This is used only for the self bet cron right now.
+func (p *phaseLifecycle) Current() int {
+	return p.current
+}
+
 func (p *phaseLifecycle) Close(close time.Time) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()

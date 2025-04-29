@@ -99,7 +99,7 @@ func Fake() Database {
 func (f *FakeDB) LoadEvent(eid string) (Scanner, error) {
 	e, ok := f.events[eid]
 	if !ok {
-		e = testEvent{}
+		return &EventScanner{done: true}, nil
 	}
 	return &EventScanner{id: eid, event: e}, nil
 }

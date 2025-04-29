@@ -164,17 +164,17 @@ func (c *Core) SendMessage(channel, message string) error {
 // //////////////////
 // Cron Operations //
 // //////////////////
-func (c *Core) AddCron(cron Cron) error {
-	// TODO: attempt to load last run time from db.
-	lastRun := c.clock.Now()
-	go schedule(cron, c.clock, lastRun.Add(cron.After()))
-	return nil
+func (c *Core) AddCron(cron Cron) {
+	lastRun := c.Database.LastRun(cron.ID())
+	go c.schedule(cron, lastRun.Add(cron.After()))
 }
 
-func schedule(cron Cron, clock Clock, at time.Time) {
-	if !at.Before(clock.Now()) {
-		wait := at.Sub(clock.Now())
-		<-clock.After(wait)
+func (c *Core) schedule(cron Cron, at time.Time) {
+	// If at is before now, run immediately, otherwise wait until the correct
+	// time to start.
+	if !at.Before(c.clock.Now()) {
+		wait := at.Sub(c.clock.Now())
+		<-c.clock.After(wait)
 	}
 	for {
 		go func() {
@@ -186,7 +186,20 @@ func schedule(cron Cron, clock Clock, at time.Time) {
 			if err := cron.Run(); err != nil {
 				slog.Error("error in %q cron: %v", cron.ID(), err)
 			}
+			tx, err := c.Database.OpenTransaction()
+			if err != nil {
+				slog.Error("error opening transaction for %q cron: %v", cron.ID(), err)
+				return
+			}
+			if err := tx.WriteCronRun(cron.ID(), c.clock.Now()); err != nil {
+				slog.Error("error writing run for %q cron: %v", cron.ID(), err)
+				return
+			}
+			if err := tx.Commit(); err != nil {
+				slog.Error("error committing run for %q cron: %v", cron.ID(), err)
+				return
+			}
 		}()
-		<-clock.After(cron.After())
+		<-c.clock.After(cron.After())
 	}
 }

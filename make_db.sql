@@ -21,6 +21,11 @@ CREATE TABLE bets(
 	PRIMARY KEY (uid, placed)
 );
 
+CREATE TABLE crons(
+	id TEXT PRIMARY KEY,
+	lastRun TEXT	
+);
+
 CREATE VIEW leaderboard(id, balance, rank) AS
 SELECT id, balance, row_number() OVER()
 FROM (

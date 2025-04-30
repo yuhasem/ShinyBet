@@ -8,6 +8,7 @@ import (
 	"bet/core"
 	"bet/core/events"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand"
 	"time"
@@ -47,6 +48,7 @@ func (c *SelfBetCron) After() time.Duration {
 }
 
 func (c *SelfBetCron) Run() error {
+	slog.Info("starting self bet cron")
 	defer func() { c.done <- true }()
 	me, err := c.core.GetUser(c.user)
 	if err != nil {
@@ -58,7 +60,9 @@ func (c *SelfBetCron) Run() error {
 	}
 	// Only participate if we have more than the default balance left in unspent
 	// cakes.
-	if balance-inBets <= 100 {
+	available := balance - inBets
+	if available <= 100 {
+		slog.Info(fmt.Sprintf("self bet: not enough cakes to make a bet: %d", available))
 		return nil
 	}
 	event, err := c.core.GetEvent("shiny")
@@ -75,20 +79,20 @@ func (c *SelfBetCron) Run() error {
 	// Always pick the direction with higher risk
 	dir := events.LESS
 	dirStr := "less"
-	if length < 5678 {
+	if length > 5678 {
 		dir = events.GREATER
 		dirStr = "greater"
 	}
 	// And finally add the length to the current phase.
 	betLength := pe.Current() + int(length)
-	p, err := pe.Wager(c.user, balance-inBets, time.Now(), events.PhaseBet{Direction: dir, Phase: betLength})
+	p, err := pe.Wager(c.user, available, time.Now(), events.PhaseBet{Direction: dir, Phase: betLength})
 	if err != nil {
-		return nil
+		return err
 	}
 	placed, ok := p.(events.PlacedPhaseBet)
 	if !ok {
+		slog.Info("self bet: the returned bet was not PlacedPhaseBet")
 		placed = events.PlacedPhaseBet{}
 	}
-	c.core.SendMessage(c.channel, fmt.Sprintf("<@%s> placed %d cakes on shiny phase being %s than %d encounters! (%.2f%% risk)", c.user, placed.Amount, dirStr, betLength, 100*placed.Risk))
-	return nil
+	return c.core.SendMessage(c.channel, fmt.Sprintf("<@%s> placed %d cakes on shiny phase being %s than %d encounters! (%.2f%% risk)", c.user, placed.Amount, dirStr, betLength, 100*placed.Risk))
 }

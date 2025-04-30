@@ -4,6 +4,7 @@ import (
 	"bet/cli"
 	"bet/core"
 	"bet/core/commands"
+	"bet/core/crons"
 	"bet/core/db"
 	"bet/core/events"
 	"bet/env"
@@ -125,6 +126,8 @@ func main() {
 	}
 	defer dg.Close()
 
+	AddCrons(core, environment)
+
 	go cli.Loop()
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -174,4 +177,12 @@ func StartEvents(c *core.Core, l *state.Listener, channel string, conf env.Event
 		l.Register(itemEvent)
 	}
 	return nil
+}
+
+func AddCrons(core *core.Core, environment *env.Environment) {
+	conf := environment.Crons
+	if conf.SelfBet.Enable {
+		cron := crons.NewSelfBetCron(core, environment.AppId, conf.SelfBet.Every, environment.DiscordChannel)
+		core.AddCron(cron)
+	}
 }

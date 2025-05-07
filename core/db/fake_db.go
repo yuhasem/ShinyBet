@@ -86,18 +86,20 @@ func (s *BetScanner) Scan(v ...any) error {
 type FakeDB struct {
 	bets   []testBet
 	events map[string]testEvent
+	crons  map[string]time.Time
 }
 
 func Fake() Database {
 	return &FakeDB{
 		events: make(map[string]testEvent),
+		crons:  make(map[string]time.Time),
 	}
 }
 
 func (f *FakeDB) LoadEvent(eid string) (Scanner, error) {
 	e, ok := f.events[eid]
 	if !ok {
-		e = testEvent{}
+		return &EventScanner{done: true}, nil
 	}
 	return &EventScanner{id: eid, event: e}, nil
 }
@@ -129,6 +131,14 @@ func (f *FakeDB) LoadUserBets(uid string) (Scanner, error) {
 
 func (f *FakeDB) Rank(uid string) (Scanner, error) {
 	return &EmptyScanner{}, nil
+}
+
+func (f *FakeDB) LastRun(id string) time.Time {
+	run, ok := f.crons[id]
+	if !ok {
+		return time.Time{}
+	}
+	return run
 }
 
 func (f *FakeDB) OpenTransaction() (Transaction, error) {
@@ -205,5 +215,10 @@ func (f *FakeTx) WriteEventDetails(eid string, details string) error {
 }
 
 func (f *FakeTx) RefreshBalance() error {
+	return nil
+}
+
+func (f *FakeTx) WriteCronRun(id string, ts time.Time) error {
+	f.d.crons[id] = ts
 	return nil
 }

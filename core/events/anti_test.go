@@ -10,7 +10,7 @@ import (
 
 func TestSaveAndLoadAntiEvent(t *testing.T) {
 	d := db.Fake()
-	c := core.New(d, nil)
+	c := core.New(d, nil, nil)
 	e := &AntiShinyEvent{
 		phaseLifecycle: &phaseLifecycle{
 			eventId:     antiEventName,

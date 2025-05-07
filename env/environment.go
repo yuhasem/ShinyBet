@@ -2,12 +2,13 @@ package env
 
 import (
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v2"
 )
 
 // Environment is loaded from a .env YAML file for configurability.
-type Enviroment struct {
+type Environment struct {
 	// Token is the discord bot token, which is used to log in as that bot.
 	Token string
 	// AppId is the discord bot application id, which is used to register
@@ -32,6 +33,8 @@ type Enviroment struct {
 	DiscordChannel string
 	// Events contains all the configuration for events.
 	Events EventConfig
+	// Crons contains all the configuration for cron jobs.
+	Crons CronConfig
 }
 
 // EventConfig contains all the ways to configure which events are run.
@@ -57,8 +60,18 @@ type ItemEventConfig struct {
 	ReopenOnStart bool
 }
 
-func LoadEnvironemnt() (*Enviroment, error) {
-	e := &Enviroment{}
+type CronConfig struct {
+	SelfBet SelfBetConfig
+}
+
+type SelfBetConfig struct {
+	Enable bool
+	// Every specfies how often the casino user will try to make bets
+	Every time.Duration
+}
+
+func LoadEnvironemnt() (*Environment, error) {
+	e := &Environment{}
 	data, err := os.ReadFile(".env")
 	if err != nil {
 		return nil, err

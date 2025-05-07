@@ -9,7 +9,7 @@ import (
 
 func TestSaveAndLoadShinyEvent(t *testing.T) {
 	d := db.Fake()
-	c := core.New(d, nil)
+	c := core.New(d, nil, nil)
 	e := &ShinyEvent{
 		phaseLifecycle: &phaseLifecycle{
 			eventId:     shinyEventName,

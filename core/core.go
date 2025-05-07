@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+type Clock interface {
+	Now() time.Time
+	After(d time.Duration) <-chan time.Time
+}
 
 type Core struct {
 	// users is a map from id to user object.  Loading users from the database
@@ -26,9 +32,12 @@ type Core struct {
 	// session is the Discord session that can be used for interacting outside
 	// of commands
 	session InteractionSession
+	// clock is used for time controls in crons. It is injected so that it can
+	// be used in unit tests.
+	clock Clock
 }
 
-func New(d db.Database, session InteractionSession) *Core {
+func New(d db.Database, session InteractionSession, clock Clock) *Core {
 	rows, err := d.LoadUsers()
 	if err != nil {
 		slog.Error(fmt.Sprintf("error loading users: %v", err))
@@ -48,8 +57,11 @@ func New(d db.Database, session InteractionSession) *Core {
 		events:   make(map[string]Event),
 		Database: d,
 		session:  session,
+		clock:    clock,
 	}
 }
+
+func (c *Core) Close() {}
 
 // //////////////////
 // User Operations //
@@ -147,4 +159,47 @@ func (c *Core) SendMessage(channel, message string) error {
 		},
 	})
 	return err
+}
+
+// //////////////////
+// Cron Operations //
+// //////////////////
+func (c *Core) AddCron(cron Cron) {
+	lastRun := c.Database.LastRun(cron.ID())
+	go c.schedule(cron, lastRun.Add(cron.After()))
+}
+
+func (c *Core) schedule(cron Cron, at time.Time) {
+	// If at is before now, run immediately, otherwise wait until the correct
+	// time to start.
+	if !at.Before(c.clock.Now()) {
+		wait := at.Sub(c.clock.Now())
+		<-c.clock.After(wait)
+	}
+	for {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("recovering from panic in %q cron: %v", cron.ID(), r)
+				}
+			}()
+			if err := cron.Run(); err != nil {
+				slog.Error("error in %q cron: %v", cron.ID(), err)
+			}
+			tx, err := c.Database.OpenTransaction()
+			if err != nil {
+				slog.Error("error opening transaction for %q cron: %v", cron.ID(), err)
+				return
+			}
+			if err := tx.WriteCronRun(cron.ID(), c.clock.Now()); err != nil {
+				slog.Error("error writing run for %q cron: %v", cron.ID(), err)
+				return
+			}
+			if err := tx.Commit(); err != nil {
+				slog.Error("error committing run for %q cron: %v", cron.ID(), err)
+				return
+			}
+		}()
+		<-c.clock.After(cron.After())
+	}
 }

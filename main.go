@@ -4,6 +4,7 @@ import (
 	"bet/cli"
 	"bet/core"
 	"bet/core/commands"
+	"bet/core/crons"
 	"bet/core/db"
 	"bet/core/events"
 	"bet/env"
@@ -23,6 +24,11 @@ type Command interface {
 	Command() *discordgo.ApplicationCommand
 	Interaction(s *discordgo.Session, i *discordgo.InteractionCreate)
 }
+
+type realClock struct{}
+
+func (realClock) Now() time.Time                         { return time.Now() }
+func (realClock) After(d time.Duration) <-chan time.Time { return time.After(d) }
 
 func main() {
 	// Set up structured logging
@@ -64,11 +70,12 @@ func main() {
 	defer database.Close()
 
 	// Create the core.
-	core := core.New(database, dg)
+	core := core.New(database, dg, realClock{})
 	if core == nil {
 		slog.Error("could not create core, exiting")
 		return
 	}
+	defer core.Close()
 
 	// Create Events/Updaters/State objects.
 	// _ = updater.NewShinyUpdater(core, dg)
@@ -119,6 +126,8 @@ func main() {
 	}
 	defer dg.Close()
 
+	AddCrons(core, environment)
+
 	go cli.Loop()
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -168,4 +177,12 @@ func StartEvents(c *core.Core, l *state.Listener, channel string, conf env.Event
 		l.Register(itemEvent)
 	}
 	return nil
+}
+
+func AddCrons(core *core.Core, environment *env.Environment) {
+	conf := environment.Crons
+	if conf.SelfBet.Enable {
+		cron := crons.NewSelfBetCron(core, environment.AppId, conf.SelfBet.Every, environment.DiscordChannel)
+		core.AddCron(cron)
+	}
 }

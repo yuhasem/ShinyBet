@@ -27,7 +27,6 @@ var maxTimeBetweenEncounters = promauto.NewGauge(prometheus.GaugeOpts{
 // Listener creates an HTTP server and listens for POST messages to update the
 // current state, and notifies registered events of state changes.
 type Listener struct {
-	state           *State
 	server          http.Server
 	observers       []Observer
 	acl             []string
@@ -52,9 +51,7 @@ func NewListener(address string, acl []string) (*Listener, error) {
 		return nil, err
 	}
 
-	state := &State{}
 	listener := &Listener{
-		state:           state,
 		server:          server,
 		observers:       make([]Observer, 0),
 		acl:             acl,
@@ -85,15 +82,17 @@ func (l *Listener) ServeHTTP(out http.ResponseWriter, in *http.Request) {
 	}
 	l.lastReceiveTime = rt
 
-	if err := json.NewDecoder(in.Body).Decode(l.state); err != nil {
+	slog.Debug(fmt.Sprintf("input json: %+v", in.Body))
+	state := &State{}
+	if err := json.NewDecoder(in.Body).Decode(state); err != nil {
 		slog.Info(fmt.Sprintf("decode error: %v", err))
 	}
-	slog.Debug(fmt.Sprintf("parsed state: %+v", l.state))
+	slog.Debug(fmt.Sprintf("parsed state: %+v", state))
 
 	go func() {
 		for _, o := range l.observers {
 			// Intentionally serial to prevent database lock contention.
-			o.Notify(l.state)
+			o.Notify(state)
 		}
 	}()
 

@@ -44,13 +44,17 @@ type EventConfig struct {
 	// Enables the anti shiny event
 	EnableAnti bool
 	// Configures the held item event
-	ItemEvent ItemEventConfig
+	ItemEvent []ItemEventConfig
 }
 
 type ItemEventConfig struct {
 	Enable  bool
 	Species string
 	Item    string
+	// ID is the identifier to use in the /bet and /ledger command, and for
+	// db storage.  Must be unique across all ItemEvents in this config.  If
+	// empty, the ID "item" will be used.
+	ID string
 	// The probability of species holding the item.  This is used for display
 	// purposes only.
 	Probability float64
@@ -58,6 +62,16 @@ type ItemEventConfig struct {
 	// for when an item event has closed, you've changed configuration, and want
 	// to reopen it.
 	ReopenOnStart bool
+	// When true, the item event will reopen after close while KeepOpenCondition
+	// is true.
+	KeepOpen          bool
+	KeepOpenCondition Condition
+}
+
+// This would be a whole bag of worms to try to do generically, so just making a
+// minimal viable struct for now.
+type Condition struct {
+	ShiniesLessThan int
 }
 
 type CronConfig struct {

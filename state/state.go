@@ -20,5 +20,8 @@ type State struct {
 		Totals struct {
 			TotalEncounters int `json:"total_encounters"`
 		} `json:"totals"`
+		Pokemon map[string]struct {
+			ShinyEncounters int `json:"shiny_encounters"`
+		} `json:"pokemon"`
 	} `json:"stats"`
 }

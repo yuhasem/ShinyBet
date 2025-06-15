@@ -45,11 +45,17 @@ func (c *LedgerCommand) Command() *discordgo.ApplicationCommand {
 			Value: "anti",
 		})
 	}
-	if c.conf.ItemEvent.Enable {
-		choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
-			Name:  "item",
-			Value: "item",
-		})
+	for _, itemConf := range c.conf.ItemEvent {
+		if itemConf.Enable {
+			name := itemConf.ID
+			if name == "" {
+				name = "item"
+			}
+			choices = append(choices, &discordgo.ApplicationCommandOptionChoice{
+				Name:  name,
+				Value: name,
+			})
+		}
 	}
 	return &discordgo.ApplicationCommand{
 		Name:        "ledger",

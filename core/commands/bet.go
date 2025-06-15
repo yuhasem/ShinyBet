@@ -28,8 +28,9 @@ var (
 )
 
 type BetCommand struct {
-	core *core.Core
-	conf env.EventConfig
+	core   *core.Core
+	conf   env.EventConfig
+	itemID []string
 }
 
 func NewBetCommand(c *core.Core, conf env.EventConfig) *BetCommand {
@@ -54,13 +55,20 @@ func (c *BetCommand) Command() *discordgo.ApplicationCommand {
 			Options:     phaseOptions(),
 		})
 	}
-	if c.conf.ItemEvent.Enable {
-		options = append(options, &discordgo.ApplicationCommandOption{
-			Name:        "item",
-			Description: fmt.Sprintf("Place a bet on whether %s will hold %s", c.conf.ItemEvent.Species, c.conf.ItemEvent.Item),
-			Type:        discordgo.ApplicationCommandOptionSubCommand,
-			Options:     boolOptions(),
-		})
+	for _, itemConf := range c.conf.ItemEvent {
+		if itemConf.Enable {
+			name := itemConf.ID
+			if name == "" {
+				name = "item"
+			}
+			options = append(options, &discordgo.ApplicationCommandOption{
+				Name:        name,
+				Description: fmt.Sprintf("Place a bet on whether %s will hold %s", itemConf.Species, itemConf.Item),
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Options:     boolOptions(),
+			})
+			c.itemID = append(c.itemID, name)
+		}
 	}
 	return &discordgo.ApplicationCommand{
 		Name:        "bet",
@@ -168,8 +176,8 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 	uid := i.Interaction.Member.User.ID
 
 	eventName := options[0].Name
-	switch eventName {
-	case "shiny", "anti":
+	switch {
+	case contains([]string{"shiny", "anti"}, eventName):
 		options = options[0].Options
 		amount := int(options[0].IntValue())
 		overUnder := options[1].StringValue()
@@ -237,7 +245,8 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 				},
 			},
 		})
-	case "item":
+	// TODO: hmmmm... How do I do this case now that the value is variable?
+	case contains(c.itemID, eventName):
 		options = options[0].Options
 		amount := int(options[0].IntValue())
 		guess := options[1].BoolValue()
@@ -287,4 +296,13 @@ func (c *BetCommand) Interaction(s *discordgo.Session, i *discordgo.InteractionC
 		return
 	}
 	betSuccess.Inc()
+}
+
+func contains(ls []string, i string) bool {
+	for _, s := range ls {
+		if s == i {
+			return true
+		}
+	}
+	return false
 }

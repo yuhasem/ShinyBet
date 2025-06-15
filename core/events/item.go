@@ -20,9 +20,12 @@ type ItemEvent struct {
 	// The species and held item to watch for.  Together, the event ends when
 	// the first shiny of `species` is found, and the resolution of the event
 	// depends on whether or not the species holds the `item`.
-	species string
-	item    string
-	prob    float64
+	species  string
+	item     string
+	ID       string
+	prob     float64
+	keepOpen bool
+	cond     env.Condition
 	// State keeping for lifecycle
 	mu         sync.Mutex
 	state      EventState
@@ -32,12 +35,19 @@ type ItemEvent struct {
 }
 
 func NewItemEvent(c *core.Core, conf env.ItemEventConfig, channel string) *ItemEvent {
+	id := conf.ID
+	if id == "" {
+		id = itemEventName
+	}
 	e := &ItemEvent{
-		c:       c,
-		species: conf.Species,
-		item:    conf.Item,
-		prob:    conf.Probability,
-		channel: channel,
+		c:        c,
+		species:  conf.Species,
+		item:     conf.Item,
+		ID:       id,
+		prob:     conf.Probability,
+		keepOpen: conf.KeepOpen,
+		cond:     conf.KeepOpenCondition,
+		channel:  channel,
 	}
 	e = loadItemEvent(e)
 	return e
@@ -47,7 +57,7 @@ func NewItemEvent(c *core.Core, conf env.ItemEventConfig, channel string) *ItemE
 // event, writing a new row to the databse if none is present.  Errors will
 // result in the event being returned unchanged
 func loadItemEvent(e *ItemEvent) *ItemEvent {
-	row, err := e.c.Database.LoadEvent(itemEventName)
+	row, err := e.c.Database.LoadEvent(e.ID)
 	if err != nil {
 		slog.Error("could not load item event from db: %v", err)
 		return e
@@ -85,7 +95,7 @@ func loadItemEvent(e *ItemEvent) *ItemEvent {
 		slog.Error(fmt.Sprintf("could not open transaction to write new item row"))
 		return e
 	}
-	if err := tx.WriteNewEvent(itemEventName, time.Now(), ""); err != nil {
+	if err := tx.WriteNewEvent(e.ID, time.Now(), ""); err != nil {
 		slog.Error(fmt.Sprintf("could not write item event row: %v", err))
 		return e
 	}
@@ -110,9 +120,33 @@ func (e *ItemEvent) Notify(s *state.State) {
 			slog.Error(fmt.Sprintf("error resolving item event: %v", err))
 			return
 		}
-		// The event is intentionally not reopened.
+		if e.keepOpen {
+			if ShouldKeepOpen(s, e.species, e.cond) {
+				if err := e.Open(time.Now()); err != nil {
+					slog.Error(fmt.Sprintf("error opening item event: %v", err))
+					return
+				}
+			}
+		}
 	}
 	slog.Debug("end item notify")
+}
+
+func ShouldKeepOpen(s *state.State, species string, cond env.Condition) bool {
+	if cond == (env.Condition{}) {
+		return true
+	}
+	p, ok := s.Stats.Pokemon[species]
+	if !ok {
+		// We've never seen the mon?  Shouldn't be true if we just saw a shiny
+		// for it.  Close the event, just in case.
+		slog.Warn("item event closed but didn't have any of that species in stats")
+		return false
+	}
+	if p.ShinyEncounters < cond.ShiniesLessThan {
+		return true
+	}
+	return false
 }
 
 func equalIgnoreCase(a, b string) bool {
@@ -123,7 +157,7 @@ func (e *ItemEvent) Open(t time.Time) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var err error
-	e.state, err = commonOpen(e.c.Database, itemEventName, t, e.state)
+	e.state, err = commonOpen(e.c.Database, e.ID, t, e.state)
 	if err != nil {
 		return err
 	}
@@ -142,7 +176,7 @@ func (e *ItemEvent) Close(t time.Time) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var err error
-	e.state, err = commonClose(e.c.Database, itemEventName, t, e.state)
+	e.state, err = commonClose(e.c.Database, e.ID, t, e.state)
 	return err
 	return nil
 }
@@ -188,7 +222,7 @@ type itemBet struct {
 }
 
 func (e *ItemEvent) loadItemBets() ([]itemBet, error) {
-	rows, err := e.c.Database.LoadBets(itemEventName)
+	rows, err := e.c.Database.LoadBets(e.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +340,7 @@ func (e *ItemEvent) sendMessage(userDelta map[string]int) {
 func (e *ItemEvent) Wager(uid string, amount int, placed time.Time, bet any) (any, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	wagerReqs.WithLabelValues(itemEventName).Inc()
+	wagerReqs.WithLabelValues(e.ID).Inc()
 	if e.state != OPEN {
 		return 0.0, BettingClosedError{}
 	}
@@ -329,13 +363,13 @@ func (e *ItemEvent) Wager(uid string, amount int, placed time.Time, bet any) (an
 	if err := user.Reserve(tx, amount); err != nil {
 		return 0.0, err
 	}
-	if err := tx.WriteBet(uid, itemEventName, placed, amount, risk, fmt.Sprintf("%t", guess)); err != nil {
+	if err := tx.WriteBet(uid, e.ID, placed, amount, risk, fmt.Sprintf("%t", guess)); err != nil {
 		return 0.0, err
 	}
 	if err := tx.Commit(); err != nil {
 		return 0.0, err
 	}
-	wagerSuccess.WithLabelValues(itemEventName).Inc()
+	wagerSuccess.WithLabelValues(e.ID).Inc()
 	return risk, nil
 }
 

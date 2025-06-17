@@ -1,3 +1,5 @@
+// This provides a tool to refund and replay an event with a new outcome.  It's
+// wrong, so don't use it.
 package main
 
 import (
@@ -167,6 +169,11 @@ func refund(c *core.Core, environment *env.RefundEnv) {
 	slog.Info("Database modified.  Failures after this point will require manual resolution.")
 
 	// Create the event, and redo the event
+	// TODO: THIS IS WRONG. The final process will involve resolving bets, but
+	// those bets never got reserved.  This gets the "inBets" column out of sync
+	// which will break future events when they resolve and the user doesn't
+	// have enough inBets to successfully resolve.  So this probably has to be
+	// a lot less "copy-paste" than I was hoping.
 	event := events.NewItemEvent(c, env.ItemEventConfig{ID: EventID}, environment.DiscordChannel)
 	if err := event.Open(OpenTS); err != nil {
 		slog.Error(fmt.Sprintf("on open: %v", err))

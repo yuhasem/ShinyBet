@@ -174,12 +174,23 @@ func refund(c *core.Core, environment *env.RefundEnv) {
 	// which will break future events when they resolve and the user doesn't
 	// have enough inBets to successfully resolve.  So this probably has to be
 	// a lot less "copy-paste" than I was hoping.
-	event := events.NewItemEvent(c, env.ItemEventConfig{ID: EventID}, environment.DiscordChannel)
+	// Well it's wrong if the bet actually finished.  If the bot was down when
+	// a shiny came through, it's fine.
+	var event core.Event
+	if environment.Event.ActualPhase == 0 {
+		event = events.NewItemEvent(c, env.ItemEventConfig{ID: EventID}, environment.DiscordChannel)
+	} else {
+		event = events.NewShinyEvent(c, environment.DiscordChannel)
+	}
 	if err := event.Open(OpenTS); err != nil {
 		slog.Error(fmt.Sprintf("on open: %v", err))
 		return
 	}
-	event.Update(environment.Event.Actual)
+	if environment.Event.ActualPhase == 0 {
+		event.Update(environment.Event.Actual)
+	} else {
+		event.Update(environment.Event.ActualPhase)
+	}
 	if err := event.Close(CloseTS); err != nil {
 		slog.Error(fmt.Sprintf("on close: %v", err))
 		return
@@ -191,25 +202,28 @@ func refund(c *core.Core, environment *env.RefundEnv) {
 
 	// Finally, restore the old event details so we can go straight back to the
 	// main betting binary.
-	tx, err = c.Database.OpenTransaction()
-	if err != nil {
-		slog.Error(fmt.Sprintf("open tx #2: %v", err))
-		return
-	}
-	if err := tx.WriteOpened(EventID, prevOpen); err != nil {
-		slog.Error(fmt.Sprintf("write prev opened: %v", err))
-		return
-	}
-	if err := tx.WriteClosed(EventID, prevClose); err != nil {
-		slog.Error(fmt.Sprintf("write prev closed: %v", err))
-		return
-	}
-	if err := tx.WriteEventDetails(EventID, prevDetails); err != nil {
-		slog.Error(fmt.Sprintf("write prev details: %v", err))
-		return
-	}
-	if err := tx.Commit(); err != nil {
-		slog.Error(fmt.Sprintf("tx commit #2: %v", err))
-		return
-	}
+	// tx, err = c.Database.OpenTransaction()
+	// if err != nil {
+	// 	slog.Error(fmt.Sprintf("open tx #2: %v", err))
+	// 	return
+	// }
+	// if err := tx.WriteOpened(EventID, prevOpen); err != nil {
+	// 	slog.Error(fmt.Sprintf("write prev opened: %v", err))
+	// 	return
+	// }
+	// if err := tx.WriteClosed(EventID, prevClose); err != nil {
+	// 	slog.Error(fmt.Sprintf("write prev closed: %v", err))
+	// 	return
+	// }
+	// if err := tx.WriteEventDetails(EventID, prevDetails); err != nil {
+	// 	slog.Error(fmt.Sprintf("write prev details: %v", err))
+	// 	return
+	// }
+	// if err := tx.Commit(); err != nil {
+	// 	slog.Error(fmt.Sprintf("tx commit #2: %v", err))
+	// 	return
+	// }
+	prevOpen = prevOpen
+	prevClose = prevClose
+	prevDetails = prevDetails
 }

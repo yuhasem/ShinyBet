@@ -27,7 +27,8 @@ type RefundEvent struct {
 	// that ended incorrectly.
 	BadEarnings map[string]int
 	// The final state to use
-	Actual bool
+	Actual      bool
+	ActualPhase int
 }
 
 func LoadRefundEnvironment() (*RefundEnv, error) {

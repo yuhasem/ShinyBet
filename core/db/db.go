@@ -5,6 +5,7 @@ package db
 
 import (
 	"database/sql"
+	"os"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -44,6 +45,36 @@ func Open(dbFile string) (*DB, error) {
 	return &DB{
 		db: db,
 	}, nil
+}
+
+// Instantiates a test DB suitable for integration testing, or returns an error
+// if it's unable to do so.
+// TODO: figure out how to get the base dir so we can find the make_db.sql
+// without needing to have the caller pass in the relative path.
+func TestDB(file string) (*DB, func() error, error) {
+	db, err := Open("file:test.db")
+	if err != nil {
+		return nil, testDbClose(db), err
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return nil, testDbClose(db), err
+	}
+	_, err = db.db.Exec(string(data))
+	if err != nil {
+		return nil, testDbClose(db), err
+	}
+	return db, testDbClose(db), nil
+}
+
+func testDbClose(d *DB) func() error {
+	return func() error {
+		err := d.Close()
+		if err != nil {
+			return err
+		}
+		return os.Remove("test.db")
+	}
 }
 
 func (d *DB) Close() error {

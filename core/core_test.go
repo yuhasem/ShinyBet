@@ -2,6 +2,8 @@ package core
 
 import (
 	"bet/core/db"
+	"bet/core/events"
+	"fmt"
 	"testing"
 	"time"
 )

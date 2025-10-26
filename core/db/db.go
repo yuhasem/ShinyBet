@@ -6,6 +6,7 @@ package db
 import (
 	"database/sql"
 	"os"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -34,6 +35,8 @@ type Scanner interface {
 
 type DB struct {
 	db *sql.DB
+	// mu is used to prevent multiple requests from locking the sqlite db.
+	mu sync.Mutex
 }
 
 // TODO: take the database file name as an argument.
@@ -84,34 +87,45 @@ func (d *DB) Close() error {
 // Returns database row from `events` table corresponding to the given event id.
 // It is expected that this returns either 0 or 1 row.
 func (d *DB) LoadEvent(eid string) (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.db.Query(`SELECT * FROM events WHERE id = ?;`, eid)
 }
 
 func (d *DB) LoadUsers() (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.db.Query(`SELECT * FROM users;`)
 }
 
 func (d *DB) LoadUser(uid string) (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.db.Query(`SELECT * FROM users WHERE id = ?`, uid)
 }
 
 // Loads all the bets placed for the given events between the event's open and
 // close time.
 func (d *DB) LoadBets(eid string) (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.db.Query(`
 	SELECT b.* FROM bets b
 	INNER JOIN events e ON b.eid = e.id
 	WHERE e.id = ?
-	  AND unixepoch(b.placed) > unixepoch(e.lastOpen);
-	`, eid)
+	  AND unixepoch(b.placed) > unixepoch(e.lastOpen);`, eid)
 }
 
 func (d *DB) Leaderboard() (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.db.Query(`SELECT id, balance FROM leaderboard LIMIT 10;`)
 }
 
 // Loads all the open bets placed by the user across all events.
 func (d *DB) LoadUserBets(uid string) (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.db.Query(`
 	SELECT b.eid, b.amount, b.risk, b.bet
 	FROM bets b
@@ -122,13 +136,21 @@ func (d *DB) LoadUserBets(uid string) (Scanner, error) {
 }
 
 func (d *DB) Rank(uid string) (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.db.Query(`SELECT rank FROM leaderboard WHERE id = ?`, uid)
+}
+
+func (d *DB) queryLastRun(id string) (Scanner, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.db.Query(`SELECT lastRun FROM crons WHERE id = ?`, id)
 }
 
 // Fetches the last run time of the cron with given id.  Returns a zero time if
 // the cron couldn't be found or had an invalid timestamp written.
 func (d *DB) LastRun(id string) time.Time {
-	row, err := d.db.Query(`SELECT lastRun FROM crons WHERE id = ?`, id)
+	row, err := d.queryLastRun(id)
 	if err != nil {
 		return time.Time{}
 	}
@@ -148,7 +170,7 @@ func (d *DB) OpenTransaction() (Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Tx{tx: tx}, nil
+	return &Tx{tx: tx, mu: &d.mu}, nil
 }
 
 // Again, the interface is for test doubles.
@@ -168,6 +190,9 @@ type Transaction interface {
 
 type Tx struct {
 	tx *sql.Tx
+	// A mutex owned by DB, which is shared because it involves operations on
+	// the same database as this transaction.
+	mu *sync.Mutex
 }
 
 func (t *Tx) Commit() error {
@@ -175,52 +200,72 @@ func (t *Tx) Commit() error {
 }
 
 func (t *Tx) WriteInBets(uid string, inBets int) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("UPDATE users SET inBets = ? WHERE id = ?", inBets, uid)
 	return err
 }
 
 func (t *Tx) WriteBalance(uid string, balance int) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("UPDATE users SET balance = ? WHERE id = ?", balance, uid)
 	return err
 }
 
 func (t *Tx) WriteNewEvent(eid string, ts time.Time, details string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	timestamp := ts.Format(time.DateTime)
 	_, err := t.tx.Exec("INSERT INTO events VALUES(?, ?, ? ,?)", eid, timestamp, timestamp, details)
 	return err
 }
 
 func (t *Tx) WriteNewUser(uid string, balance int, inBets int) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("INSERT INTO users VALUES(?, ?, ?)", uid, balance, inBets)
 	return err
 }
 
 func (t *Tx) WriteBet(uid string, eid string, ts time.Time, amount int, risk float64, data string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("INSERT INTO bets VALUES(?, ?, ?, ?, ?, ?)", uid, eid, ts.Format(time.DateTime), amount, risk, data)
 	return err
 }
 
 func (t *Tx) WriteOpened(eid string, opened time.Time) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("UPDATE events SET lastOpen = ? WHERE id = ?", opened.Format(time.DateTime), eid)
 	return err
 }
 
 func (t *Tx) WriteClosed(eid string, closed time.Time) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("UPDATE events SET lastClose = ? WHERE id = ?", closed.Format(time.DateTime), eid)
 	return err
 }
 
 func (t *Tx) WriteEventDetails(eid string, details string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("UPDATE events SET details = ? WHERE id = ?", details, eid)
 	return err
 }
 
 func (t *Tx) RefreshBalance() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("UPDATE users SET balance = 100 WHERE balance < 100;")
 	return err
 }
 
 func (t *Tx) WriteCronRun(id string, ts time.Time) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	_, err := t.tx.Exec("INSERT OR REPLACE INTO crons VALUES(?, ?)", id, ts.Format(time.DateTime))
 	return err
 }

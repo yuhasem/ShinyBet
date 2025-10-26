@@ -27,6 +27,10 @@ func TestParallelization(t *testing.T) {
 				if err != nil {
 					t.Errorf("bet %d failed: %v", i, err)
 				}
+				_, err = e.BetsSummary("risk")
+				if err != nil {
+					t.Errorf("summary %d failed: %v", i, err)
+				}
 			})
 		}
 	})

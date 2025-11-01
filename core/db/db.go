@@ -9,8 +9,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	_ "modernc.org/sqlite"
 )
+
+var dbExecTime = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Name:    "core_state_db_op_time",
+	Help:    "Time (microseconds) it takes to execute a db query",
+	Buckets: prometheus.ExponentialBuckets(1.0, 2.0, 20),
+}, []string{
+	// The Database method being called.
+	"op",
+})
 
 // The Database interface allows us to create a test doubles that don't need to
 // actually write to a real database.
@@ -39,7 +50,6 @@ type DB struct {
 	mu sync.Mutex
 }
 
-// TODO: take the database file name as an argument.
 func Open(dbFile string) (*DB, error) {
 	db, err := sql.Open("sqlite", dbFile)
 	if err != nil {
@@ -89,18 +99,33 @@ func (d *DB) Close() error {
 func (d *DB) LoadEvent(eid string) (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("LoadEvent").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`SELECT * FROM events WHERE id = ?;`, eid)
 }
 
 func (d *DB) LoadUsers() (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("LoadUsers").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`SELECT * FROM users;`)
 }
 
 func (d *DB) LoadUser(uid string) (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("LoadUser").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`SELECT * FROM users WHERE id = ?`, uid)
 }
 
@@ -109,6 +134,11 @@ func (d *DB) LoadUser(uid string) (Scanner, error) {
 func (d *DB) LoadBets(eid string) (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("LoadBets").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`
 	SELECT b.* FROM bets b
 	INNER JOIN events e ON b.eid = e.id
@@ -119,6 +149,11 @@ func (d *DB) LoadBets(eid string) (Scanner, error) {
 func (d *DB) Leaderboard() (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("Leaderboard").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`SELECT id, balance FROM leaderboard LIMIT 10;`)
 }
 
@@ -126,6 +161,11 @@ func (d *DB) Leaderboard() (Scanner, error) {
 func (d *DB) LoadUserBets(uid string) (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("LoadUserBets").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`
 	SELECT b.eid, b.amount, b.risk, b.bet
 	FROM bets b
@@ -138,12 +178,22 @@ func (d *DB) LoadUserBets(uid string) (Scanner, error) {
 func (d *DB) Rank(uid string) (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("Rank").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`SELECT rank FROM leaderboard WHERE id = ?`, uid)
 }
 
 func (d *DB) queryLastRun(id string) (Scanner, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		dbExecTime.WithLabelValues("LastRun").Observe(float64(end.UnixMicro() - start.UnixMicro()))
+	}()
 	return d.db.Query(`SELECT lastRun FROM crons WHERE id = ?`, id)
 }
 

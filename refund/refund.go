@@ -86,6 +86,7 @@ func main() {
 // TODO: This just considers item events for now because that was the thing that
 // broke.  It would be nice to have this work for other event types.
 func refund(c *core.Core, environment *env.RefundEnv) {
+	// TODO: validate that this is a valid event id at the start?
 	EventID := environment.Event.ID
 	OpenTS, err := time.Parse(time.DateTime, environment.Event.Start)
 	if err != nil {
@@ -180,7 +181,11 @@ func refund(c *core.Core, environment *env.RefundEnv) {
 	if environment.Event.ActualPhase == 0 {
 		event = events.NewItemEvent(c, env.ItemEventConfig{ID: EventID}, environment.DiscordChannel)
 	} else {
-		event = events.NewShinyEvent(c, environment.DiscordChannel)
+		if EventID == "shiny" {
+			event = events.NewShinyEvent(c, environment.DiscordChannel)
+		} else {
+			event = events.NewAntiShinyEvent(c, environment.DiscordChannel)
+		}
 	}
 	if err := event.Open(OpenTS); err != nil {
 		slog.Error(fmt.Sprintf("on open: %v", err))
